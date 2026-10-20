@@ -4,6 +4,7 @@ import { PwaRegister } from '@/components/pwa-register'
 import { AuthProvider } from '@/components/auth-provider'
 import { StreeChat } from '@/components/stree-chat'
 import { LanguageProvider } from '@/components/language-provider'
+import 'leaflet/dist/leaflet.css'
 import './globals.css'
 
 export const metadata: Metadata = {

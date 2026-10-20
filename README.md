@@ -986,6 +986,8 @@ The system can generate:
 
 Public maps should use appropriate location generalization.
 
+The Control Room GIS uses Leaflet and OpenStreetMap tiles, with separate Chai heat, issue-density, priority and resolution layers plus department/category filters. Its private `/api/gis/heatmap` endpoint is restricted to map-authorized roles and returns only aggregates on an approximately 1 km grid; exact device coordinates are never sent to the map. Citizens must opt in to device location when filing a report. Synthetic SQL seed records are marked `is_demo` and excluded from live heat calculations; the local demo issue store starts empty rather than injecting mock complaints. `NEXT_PUBLIC_MAP_TILE_URL` and `NEXT_PUBLIC_MAP_ATTRIBUTION` can be set for a compatible tile provider. The default OpenStreetMap tile server is best-effort and subject to its usage policy; do not prefetch tiles or offer offline map downloads.
+
 ---
 
 # 🧠 WebLLM + Hybrid AI

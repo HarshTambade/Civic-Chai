@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { addIssueSupport, hasIssueSupport } from '@/lib/issues'
 import { getRequestContext } from '@/lib/api-auth'
 import { APP_ROLES } from '@/lib/roles'
+import { toPublicIssue } from '@/lib/privacy'
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { actor, client, authenticated } = await getRequestContext(request)
@@ -13,7 +14,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
     const { id } = await params
     const issue = await addIssueSupport(id, actor.id, client)
     if (!issue) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
-    return NextResponse.json({ issue })
+    return NextResponse.json({ issue: toPublicIssue(issue) })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to add support.' }, { status: 400 })
   }

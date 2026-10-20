@@ -1,6 +1,4 @@
 import { getSupabaseClient } from '@/lib/supabase'
-import { fallbackIssues } from '@/lib/fallback-data'
-import { seedIssues } from '@/lib/seed-data'
 import { calculatePriorityScore, calculateTrustScore } from '@/lib/scoring'
 import { recordFallbackAudit } from '@/lib/audit'
 import { redactPublicText, safeComment } from '@/lib/privacy'
@@ -14,7 +12,7 @@ export type IssueComment = { id: string; issue_id: string; author_id?: string; d
 
 function getFallbackIssueStore(): IssueRecord[] {
   const globalScope = globalThis as typeof globalThis & { [ISSUE_FALLBACK_STORE_KEY]?: IssueRecord[] }
-  if (!globalScope[ISSUE_FALLBACK_STORE_KEY]) globalScope[ISSUE_FALLBACK_STORE_KEY] = [...seedIssues, ...fallbackIssues]
+  if (!globalScope[ISSUE_FALLBACK_STORE_KEY]) globalScope[ISSUE_FALLBACK_STORE_KEY] = []
   return globalScope[ISSUE_FALLBACK_STORE_KEY]!
 }
 
@@ -190,7 +188,7 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
   if (!client) {
     const issue = normalizeIssue({ ...payload, id: `local-${crypto.randomUUID()}`, created_at: createdAt })
     getFallbackIssueStore().unshift(issue)
-    recordFallbackAudit('issue.created', issue.id, input.created_by, { document_id: issue.documentId, model_version: payload.model_version })
+    recordFallbackAudit('issue.created', issue.id, input.created_by, { document_id: issue.documentId, status: issue.status, model_version: payload.model_version })
     return issue
   }
 
@@ -238,7 +236,12 @@ export async function updateIssue(
   if (!current) return null
   if (!client) {
     const before = { status: current.status, department: current.department, officer: current.officer }
-    Object.assign(current, input, { updatedAt: new Date().toISOString(), updated_at: new Date().toISOString() })
+    if (input.status) current.status = input.status
+    if (input.department) current.department = input.department
+    if (input.officer) current.officer = input.officer
+    const updatedAt = new Date().toISOString()
+    current.updatedAt = updatedAt
+    current.updated_at = updatedAt
     recordFallbackAudit(input.status ? 'issue.status_changed' : 'issue.assignment_changed', current.id, actorId, { before, status: current.status, department: current.department, officer: current.officer, note: input.note })
     return current
   }

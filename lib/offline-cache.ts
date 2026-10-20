@@ -1,4 +1,4 @@
-const DEFAULT_ISSUE_CACHE_KEY = 'civicchai:issues:public'
+const DEFAULT_ISSUE_CACHE_KEY = 'civicchai:issues:v2:public'
 
 export function readCachedIssues(cacheKey = DEFAULT_ISSUE_CACHE_KEY) {
   if (typeof window === 'undefined') return []

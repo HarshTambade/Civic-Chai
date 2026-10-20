@@ -10,6 +10,8 @@ import { useAuth } from '@/components/auth-provider'
 import { canManageIssues, canManageRegistry, canModerate, ROLE_LABELS } from '@/lib/roles'
 import type { IssueRecord } from '@/lib/types'
 import type { AppRole } from '@/lib/roles'
+import type { HeatmapData, HeatmapMetric } from '@/lib/heatmap'
+import { HeatmapCanvas } from '@/components/gov/heatmap-canvas'
 import { PriorityBadge, StatusBadge, TrustBadge } from '@/components/brand/badges'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { CivicTimeline } from '@/components/brand/civic-timeline'
@@ -30,14 +32,6 @@ const MapContainer = dynamic(
 )
 const TileLayer = dynamic(
   async () => (await import('react-leaflet')).TileLayer,
-  { ssr: false },
-)
-const Circle = dynamic(
-  async () => (await import('react-leaflet')).Circle,
-  { ssr: false },
-)
-const Popup = dynamic(
-  async () => (await import('react-leaflet')).Popup,
   { ssr: false },
 )
 
@@ -494,82 +488,151 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 /* ---------------- GIS Hotspots ---------------- */
-function MapFocus({ center }: { center: [number, number] }) {
+function MapFocus({ center, zoom }: { center: [number, number]; zoom: number }) {
   const map = useMapHook()
 
   useEffect(() => {
-    map.setView(center, 13)
-  }, [center, map])
+    map.setView(center, zoom, { animate: false })
+  }, [center[0], center[1], map, zoom])
 
   return null
 }
 
+const EMPTY_HEATMAP: HeatmapData = {
+  totalIssues: 0,
+  syntheticSeedCount: 0,
+  mappedIssueCount: 0,
+  unmappedIssueCount: 0,
+  cells: [],
+  regions: [],
+  filters: { departments: [], categories: [] },
+}
+
+const MAP_METRICS: Array<{ value: HeatmapMetric; label: string }> = [
+  { value: 'chai', label: 'Chai heat' },
+  { value: 'density', label: 'Issue density' },
+  { value: 'priority', label: 'Priority' },
+  { value: 'resolution', label: 'Resolution' },
+]
+
 export function GISView() {
-  const [issues, setIssues] = useState<IssueRecord[]>([])
+  const [data, setData] = useState<HeatmapData>(EMPTY_HEATMAP)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [activePin, setActivePin] = useState('')
+  const [activeRegionKey, setActiveRegionKey] = useState('')
+  const [metric, setMetric] = useState<HeatmapMetric>('chai')
+  const [department, setDepartment] = useState('')
+  const [category, setCategory] = useState('')
 
   useEffect(() => {
     let cancelled = false
-    civicFetch('/api/issues')
-      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load location data.')))
-      .then((payload) => { if (!cancelled) setIssues(Array.isArray(payload.issues) ? payload.issues : []) })
+    setLoading(true)
+    setError('')
+    const params = new URLSearchParams()
+    if (department) params.set('department', department)
+    if (category) params.set('category', category)
+    civicFetch(`/api/gis/heatmap${params.size ? `?${params}` : ''}`)
+      .then(async (response) => {
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error ?? 'Unable to load location data.')
+        return payload as HeatmapData
+      })
+      .then((payload) => {
+        if (!cancelled) {
+          setData(payload)
+          setActiveRegionKey((current) => payload.regions.some((region) => region.key === current) ? current : payload.regions[0]?.key ?? '')
+        }
+      })
       .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'Unable to load location data.') })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
-  }, [])
+  }, [department, category])
 
-  const groups = [...new Set(issues.map((issue) => `${issue.pin}|${issue.locality}`))].map((key) => {
-    const [pin, locality] = key.split('|')
-    const rows = issues.filter((issue) => issue.pin === pin && issue.locality === locality)
-    const located = rows.filter((issue) => Number.isFinite(issue.latitude) && Number.isFinite(issue.longitude))
-    const resolved = rows.filter((issue) => ['Resolved', 'Community Verified', 'Closed'].includes(issue.status)).length
-    const categories = [...new Set(rows.map((issue) => issue.category))].slice(0, 4)
-    const position: [number, number] | undefined = located.length
-      ? [Number((located.reduce((sum, issue) => sum + (issue.latitude ?? 0), 0) / located.length).toFixed(3)), Number((located.reduce((sum, issue) => sum + (issue.longitude ?? 0), 0) / located.length).toFixed(3))]
-      : undefined
-    const heat = Math.round(rows.reduce((sum, issue) => sum + issue.chaiHeat, 0) / Math.max(1, rows.length))
-    const level = rows.some((issue) => issue.priority === 'Critical') ? 'Critical' : rows.some((issue) => issue.priority === 'High') ? 'High' : rows.some((issue) => issue.priority === 'Moderate') ? 'Moderate' : 'Low'
-    return { key, pin, locality, rows, position, heat, level, resolutionRate: Math.round((resolved / Math.max(1, rows.length)) * 100), categories }
-  }).sort((a, b) => b.rows.length - a.rows.length)
-  const active = groups.find((group) => group.key === activePin) ?? groups[0]
-  const mappedGroups = groups.filter((group) => group.position)
-  const center = active?.position ?? mappedGroups[0]?.position
+  const active = data.regions.find((region) => region.key === activeRegionKey) ?? data.regions[0]
+  const hasActiveCenter = active?.latitude != null && active.longitude != null
+  const firstCell = data.cells[0]
+  const center: [number, number] = hasActiveCenter
+    ? [active.latitude!, active.longitude!]
+    : firstCell ? [firstCell.latitude, firstCell.longitude] : [20.5937, 78.9629]
+  const zoom = hasActiveCenter ? 12 : firstCell ? 6 : 5
+  const metricLabels: Record<HeatmapMetric, string> = {
+    chai: 'Community Chai heat',
+    density: 'Number of issue reports',
+    priority: 'Average civic priority score',
+    resolution: 'Resolved issue share',
+  }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
-      <div className="overflow-hidden rounded-lg border border-sidebar-border bg-sidebar-accent">
-        <div className="flex items-center justify-between border-b border-sidebar-border px-3 py-2 text-xs font-medium text-cream/70">
-          <span>Chai Heat Map — locality-level aggregates</span>
-          <span>{mappedGroups.length} mapped localities</span>
-        </div>
-        {center ? <div className="h-[460px] w-full">
-          <MapContainer center={center} zoom={12} scrollWheelZoom className="h-full w-full" style={{ background: '#201c1a' }}>
-            <MapFocus center={center} />
-            <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {mappedGroups.map((group) => {
-              const isActive = group.key === active?.key
-              const color = group.level === 'Critical' ? '#F25A4C' : group.level === 'High' ? '#e67b59' : group.level === 'Moderate' ? '#e0a23e' : '#52b57d'
-              return <Circle key={group.key} center={group.position!} radius={Math.min(700, 180 + group.rows.length * 30)} pathOptions={{ color, fillColor: color, fillOpacity: isActive ? 0.38 : 0.2, weight: isActive ? 2 : 1 }} eventHandlers={{ click: () => setActivePin(group.key) }}>
-                <Popup><div className="text-xs text-charcoal"><strong>{group.locality}</strong><div>PIN {group.pin}</div><div>{group.level} · {group.rows.length} issue{group.rows.length === 1 ? '' : 's'}</div></div></Popup>
-              </Circle>
-            })}
-          </MapContainer>
-        </div> : <div className="flex h-[460px] items-center justify-center px-8 text-center text-sm text-cream/55">{loading ? 'Loading jurisdiction data…' : error || 'No consented coordinates are available. Reports without coordinates remain grouped by PIN and locality.'}</div>}
+    <div className="space-y-4">
+      {error && <p role="status" className="rounded-lg border border-heat/30 bg-heat/10 p-3 text-sm text-heat">{error}</p>}
+
+      <div className="grid gap-3 rounded-lg border border-sidebar-border bg-sidebar-accent p-4 sm:grid-cols-2">
+        <label className="text-xs font-medium text-cream/60">Department
+          <select value={department} onChange={(event) => setDepartment(event.target.value)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream outline-none focus:border-gold">
+            <option value="">All departments</option>
+            {data.filters.departments.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
+        <label className="text-xs font-medium text-cream/60">Issue category
+          <select value={category} onChange={(event) => setCategory(event.target.value)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream outline-none focus:border-gold">
+            <option value="">All categories</option>
+            {data.filters.categories.map((value) => <option key={value} value={value}>{value}</option>)}
+          </select>
+        </label>
       </div>
 
-      <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
-        {error && <p role="status" className="mb-3 text-xs text-heat">{error}</p>}
-        {active ? <>
-          <div className="flex items-center gap-2"><span className={cn('h-3 w-3 rounded-full', active.level === 'Critical' ? 'bg-heat' : active.level === 'High' ? 'bg-terracotta' : active.level === 'Moderate' ? 'bg-gold' : 'bg-leaf')} /><h3 className="font-display text-lg font-extrabold text-cream">PIN {active.pin}</h3><span className="text-xs text-cream/50">{active.level}</span></div>
-          <div className="mt-3 rounded-md border border-sidebar-border bg-sidebar/60 px-3 py-2 text-xs text-cream/60">{active.locality}</div>
-          <dl className="mt-4 space-y-2 text-sm">{[['Issues', String(active.rows.length)], ['Average Chai Heat', `${active.heat}°`], ['Current resolution rate', `${active.resolutionRate}%`]].map(([label, value]) => <div key={label} className="flex justify-between"><dt className="text-cream/50">{label}</dt><dd className="font-semibold text-cream">{value}</dd></div>)}</dl>
-          <p className="mt-4 text-xs font-semibold uppercase tracking-wide text-cream/50">Reported categories</p>
-          <ul className="mt-2 space-y-1 text-sm text-cream/75">{active.categories.map((category) => <li key={category}>{category}</li>)}</ul>
-          <p className="mt-4 text-[11px] leading-relaxed text-cream/45">Map circles use rounded locality centroids, never a report&apos;s exact coordinates. Counts reflect the signed-in role&apos;s jurisdiction scope.</p>
-        </> : <p className="text-sm text-cream/55">{loading ? 'Loading locality aggregates…' : 'No issue data is available in this scope.'}</p>}
-        {groups.length > 1 && <label className="mt-5 block text-xs text-cream/55">Select locality<select value={active?.key ?? ''} onChange={(event) => setActivePin(event.target.value)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream">{groups.map((group) => <option key={group.key} value={group.key}>PIN {group.pin} · {group.locality}</option>)}</select></label>}
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+        {MAP_METRICS.map((item) => <button key={item.value} type="button" onClick={() => setMetric(item.value)} aria-pressed={metric === item.value} className={cn('min-h-10 rounded-md border px-3 py-2 text-xs font-semibold transition-colors', metric === item.value ? 'border-gold bg-gold text-charcoal' : 'border-sidebar-border bg-sidebar-accent text-cream/65 hover:text-cream')}>{item.label}</button>)}
+      </div>
+      {data.syntheticSeedCount > 0 && <p className="text-[11px] text-gold">{data.syntheticSeedCount} synthetic seed example{data.syntheticSeedCount === 1 ? '' : 's'} excluded from the live heatmap.</p>}
+
+      <div className="grid gap-4 lg:grid-cols-[1.6fr_1fr]">
+        <div className="overflow-hidden rounded-lg border border-sidebar-border bg-sidebar-accent">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-sidebar-border px-3 py-2 text-xs font-medium text-cream/70">
+            <span>OpenStreetMap · {metricLabels[metric]}</span>
+            <span>{data.cells.length} generalized map cells · {data.mappedIssueCount}/{data.totalIssues} reports located</span>
+          </div>
+          <div className="relative h-[460px] w-full">
+            <MapContainer center={center} zoom={zoom} scrollWheelZoom className="h-full w-full" style={{ background: '#201c1a' }}>
+              <MapFocus center={center} zoom={zoom} />
+              <TileLayer attribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'} url={process.env.NEXT_PUBLIC_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} />
+              <HeatmapCanvas cells={data.cells} metric={metric} />
+            </MapContainer>
+            <div className="pointer-events-none absolute bottom-3 left-3 right-36 z-[700] flex items-center gap-2 rounded-md border border-sidebar-border bg-sidebar/90 px-3 py-2 text-[10px] text-cream/75 shadow-lg sm:right-40">
+              <span className="shrink-0">{metric === 'resolution' ? 'Lower' : 'Less'}</span>
+              <span className="h-2 flex-1 rounded-full" style={{ background: metric === 'resolution' ? 'linear-gradient(90deg,#c84630,#d99a3d,#3f6b45)' : 'linear-gradient(90deg,#3f6b45,#d99a3d,#c84630)' }} />
+              <span className="shrink-0">{metric === 'resolution' ? 'Higher' : 'More'}</span>
+              <span className="ml-1 hidden sm:inline">{metricLabels[metric]}</span>
+            </div>
+            {!data.cells.length && <div className="pointer-events-none absolute inset-x-5 top-5 z-[700] rounded-md border border-sidebar-border bg-sidebar/90 px-3 py-2 text-center text-xs text-cream/75">{loading ? 'Loading consented location aggregates…' : 'No consented report coordinates in this filter yet. The map only plots reports where the citizen shared device location.'}</div>}
+          </div>
+          <p className="flex flex-wrap items-center justify-between gap-2 border-t border-sidebar-border px-3 py-2 text-[10px] leading-relaxed text-cream/45"><span>Map cells generalize device coordinates to approximately 1 km before leaving the server. Exact report coordinates are never returned by this map endpoint.</span><a href="https://www.openstreetmap.org/fixthemap" target="_blank" rel="noreferrer" className="shrink-0 underline underline-offset-2">Report a map issue</a></p>
+        </div>
+
+        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+          <div className="flex items-center justify-between gap-2">
+            <div><p className="text-xs font-semibold uppercase tracking-wide text-cream/50">Selected locality</p><h3 className="mt-1 font-display text-lg font-extrabold text-cream">{active?.locality ?? 'No locality data'}</h3></div>
+            {active && <span className="rounded bg-sidebar px-2 py-1 text-xs font-semibold text-gold">PIN {active.pin}</span>}
+          </div>
+          {active ? <>
+            <dl className="mt-4 space-y-2 text-sm">
+              {[['Issues', String(active.issueCount)], ['Average Chai heat', `${active.averageChaiHeat}°`], ['Average priority', `${active.averagePriority}%`], ['Resolution rate', `${active.resolutionRate}%`], ['With shared map location', String(active.mappedIssueCount)]].map(([label, value]) => <div key={label} className="flex justify-between gap-3"><dt className="text-cream/50">{label}</dt><dd className="font-semibold text-cream">{value}</dd></div>)}
+            </dl>
+            {active.categories.length > 0 && <><p className="mt-4 text-xs font-semibold uppercase tracking-wide text-cream/50">Top categories</p><ul className="mt-2 flex flex-wrap gap-2">{active.categories.map((value) => <li key={value} className="rounded-full bg-sidebar px-2.5 py-1 text-[10px] text-cream/70">{value}</li>)}</ul></>}
+          </> : <p className="mt-3 text-sm text-cream/55">{loading ? 'Loading locality aggregates…' : 'No issue data is available in this scope.'}</p>}
+
+          <div className="mt-5 border-t border-sidebar-border pt-4">
+            <div className="flex items-center justify-between gap-2"><p className="text-xs font-semibold uppercase tracking-wide text-cream/50">Locality hotspots</p><span className="text-[10px] text-cream/40">{data.regions.length}</span></div>
+            <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+              {data.regions.slice(0, 10).map((region) => <button key={region.key} type="button" onClick={() => setActiveRegionKey(region.key)} aria-pressed={active?.key === region.key} className={cn('w-full rounded-md border p-2.5 text-left transition-colors', active?.key === region.key ? 'border-gold/50 bg-gold/10' : 'border-transparent hover:bg-sidebar')}>
+                <span className="flex items-center justify-between gap-2 text-xs"><span className="truncate font-semibold text-cream">{region.locality || `PIN ${region.pin}`}</span><span className="shrink-0 text-cream/55">{region.issueCount} issue{region.issueCount === 1 ? '' : 's'}</span></span>
+                <span className="mt-1 block text-[10px] text-cream/45">PIN {region.pin} · {region.averageChaiHeat}° heat · {region.resolutionRate}% resolved</span>
+              </button>)}
+              {!data.regions.length && <p className="py-3 text-xs text-cream/45">No issue clusters for the selected filters.</p>}
+            </div>
+          </div>
+          <p className="mt-4 text-[10px] leading-relaxed text-cream/40">Only real, non-seed reports are counted. Location is shown only when a citizen opted into device-location sharing.</p>
+        </div>
       </div>
     </div>
   )

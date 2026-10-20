@@ -46,7 +46,7 @@ export function LocalChaiView() {
 
   useEffect(() => {
     let cancelled = false
-    const cacheKey = `civicchai:issues:${pin || 'all'}`
+    const cacheKey = `civicchai:issues:v2:${pin || 'all'}`
     fetchIssuesWithCache(async () => {
       const res = await fetch(`/api/public/issues${pin ? `?pin=${encodeURIComponent(pin)}` : ''}`)
       if (!res.ok) throw new Error('Failed')

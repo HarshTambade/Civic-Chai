@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import Link from 'next/link'
 import type { IssueRecord } from '@/lib/types'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { CivicTimeline } from '@/components/brand/civic-timeline'
@@ -10,6 +11,8 @@ import { Building2, MapPin, Phone, ShieldCheck, FileText } from 'lucide-react'
 
 export function ReportPreview() {
   const [issue, setIssue] = useState<IssueRecord | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [feedUnavailable, setFeedUnavailable] = useState(false)
 
   useEffect(() => {
     let cancelled = false
@@ -18,40 +21,36 @@ export function ReportPreview() {
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (!cancelled && Array.isArray(payload?.issues) && payload.issues.length > 0) {
-          setIssue(payload.issues[1] ?? payload.issues[0])
+          const rows = payload.issues as IssueRecord[]
+          setIssue(rows.find((row) => !row.isDemo) ?? rows[0])
         }
       })
       .catch(() => {
-        if (!cancelled) setIssue(null)
+        if (!cancelled) setFeedUnavailable(true)
       })
+      .finally(() => { if (!cancelled) setLoading(false) })
 
     return () => {
       cancelled = true
     }
   }, [])
 
-  const currentIssue: IssueRecord = issue ?? {
-    documentId: 'CC-READY-000001',
-    title: 'Community issue intake',
-    locality: 'Your neighbourhood',
-    description:
-      'This section will display a live civic issue as soon as the app receives data from the issue feed.',
-    department: 'Municipal operations',
-    pin: 'Local feed',
-    hub: 'No verified authority hub',
-    officer: 'Assignment pending',
-    priority: 'Moderate' as const,
-    trust: 0,
-    reports: 0,
-    supporters: 0,
-    comments: 0,
-    daysUnresolved: 0,
-    status: 'Filed' as const,
-    chaiHeat: 0,
-    id: 'placeholder',
-    category: 'General',
-    createdAt: new Date().toISOString(),
+  if (!issue) {
+    return (
+      <section className="paper-grain">
+        <div className="mx-auto max-w-5xl px-4 py-16 sm:px-6">
+          <div className="mx-auto max-w-2xl rounded-3xl border border-border bg-card p-8 text-center shadow-sm sm:p-12">
+            <span className="text-xs font-semibold uppercase tracking-widest text-terracotta">Live community feed</span>
+            <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-charcoal sm:text-4xl">{loading ? 'Loading public reports' : feedUnavailable ? 'Reports are temporarily unavailable' : 'No public reports yet'}</h2>
+            <p className="mx-auto mt-3 max-w-lg text-sm leading-relaxed text-charcoal/65">{loading ? 'Checking the latest community-submitted civic issues.' : feedUnavailable ? 'The live issue feed could not be reached. Please try again in a moment.' : 'Be the first to report a local civic issue. Reports appear here after they are submitted to the community feed.'}</p>
+            {!loading && !feedUnavailable && <Link href="/citizen" className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-terracotta px-5 py-3 text-sm font-bold text-cream">Report an issue</Link>}
+          </div>
+        </div>
+      </section>
+    )
   }
+
+  const currentIssue = issue
 
   return (
     <section className="paper-grain">
@@ -76,6 +75,7 @@ export function ReportPreview() {
                 <p className="font-mono text-sm font-semibold">
                   {currentIssue.documentId}
                 </p>
+                {currentIssue.isDemo && <p className="mt-0.5 text-[10px] font-semibold uppercase tracking-wide text-gold">Synthetic seed example</p>}
               </div>
             </div>
             <PriorityBadge priority={currentIssue.priority} />
@@ -110,7 +110,7 @@ export function ReportPreview() {
                   Relevant public reference
                 </p>
                 <p className="mt-1 text-sm text-charcoal/80">
-                  This detail is populated from your live civic workflow once Supabase is connected.
+                  Official service standards appear here only after the responsible authority verifies a source for this PIN.
                 </p>
                 <p className="mt-2 text-xs italic text-charcoal/50">
                   For civic education only — not legal advice.

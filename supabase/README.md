@@ -26,6 +26,8 @@ All provisioned demo accounts use `CivicChai!2026` as the password. Accounts are
 
 Without Supabase configuration, the same accounts are available in the browser-only demo session. That mode is for UI review and is not secure authentication or durable storage.
 
+The unconfigured local demo starts with an empty issue feed; it no longer injects hard-coded mock complaints. `seed.sql` remains the intentional source of synthetic sample issues for a connected demo database. They are tagged `is_demo` and omitted from live heatmap calculations.
+
 ## Database capabilities
 
 The migrations create roles and scoped RBAC, issue/report/evidence records, community support, comments and moderation reports, reversible duplicate links, separate priority and evidence-trust factors, status history, verified hub/officer/document registries, optional SLA targets, notifications, audit records, a private evidence bucket, and an IVR session table. Public Supabase reads are restricted to feed-safe columns; exact coordinates, reporter identity, raw complaint text, and private evidence remain server-side.
