@@ -7,7 +7,7 @@ This folder contains the Postgres schema, incremental migrations, and synthetic 
 1. Create a Supabase project and copy its project URL and anon key.
 2. Apply the migrations in order: `migrations/001_init.sql`, then `migrations/002_civicchai_platform.sql`. The combined `schema.sql` is also provided for a fresh SQL Editor import.
 3. Run `seed.sql` for clearly labeled synthetic civic issues. No real public official, phone number, legal citation, hub, or service target is seeded or treated as verified.
-4. In the app, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY`, `SUPABASE_URL`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. Never expose the service role key to the browser.
+4. In the app, set `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_URL`, and the server-only `SUPABASE_SERVICE_ROLE_KEY`. The legacy `NEXT_PUBLIC_SUPABASE_ANON_KEY` is also accepted. Never expose the service role key to the browser.
 5. Run `npm run seed:demo-users` with `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY` set to create one Supabase Auth account for every product role.
 
 ## Demo users
