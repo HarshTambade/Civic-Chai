@@ -15,7 +15,7 @@ export const metadata: Metadata = {
   appleWebApp: {
     capable: true,
     title: 'CivicChai',
-    statusBarStyle: 'default',
+    statusBarStyle: 'black-translucent',
   },
 }
 

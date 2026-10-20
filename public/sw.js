@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'civicchai-v3'
+const CACHE_VERSION = 'civicchai-v4'
 const SHELL_CACHE = `${CACHE_VERSION}-shell`
 const APP_SHELL = [
   '/',
@@ -8,6 +8,7 @@ const APP_SHELL = [
   '/offline',
   '/manifest.webmanifest',
   '/icon.svg',
+  '/apple-icon.png',
   '/icon-192.png',
   '/icon-512.png',
 ]

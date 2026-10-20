@@ -1,13 +1,33 @@
 {
   "name": "CivicChai",
   "short_name": "CivicChai",
+  "id": "/citizen",
   "description": "CivicChai turns everyday civic problems into visible community action and government response.",
-  "start_url": "/",
+  "lang": "en-IN",
+  "start_url": "/citizen",
   "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
   "background_color": "#f8f3ea",
   "theme_color": "#6b3f24",
   "orientation": "portrait",
   "scope": "/",
+  "categories": ["social", "government", "utilities"],
+  "shortcuts": [
+    {
+      "name": "Report a civic issue",
+      "short_name": "Report issue",
+      "description": "Open a new civic issue report",
+      "url": "/citizen?report=1",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    },
+    {
+      "name": "Community Chai Tapri",
+      "short_name": "Chai Tapri",
+      "description": "See the civic issues trending in your community",
+      "url": "/chai-tapri",
+      "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" }]
+    }
+  ],
   "icons": [
     {
       "src": "/icon-192.png",
