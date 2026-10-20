@@ -18,7 +18,8 @@ export function LoginPage() {
   const [name, setName] = useState('')
   const [creatingAccount, setCreatingAccount] = useState(false)
   const [notice, setNotice] = useState('')
-  const canRegister = hasSupabaseConfig()
+  const supabaseConfigured = hasSupabaseConfig()
+  const canRegister = supabaseConfigured
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -55,7 +56,11 @@ export function LoginPage() {
           <section>
             <h1 className="font-display text-2xl font-extrabold">{creatingAccount ? 'Create a citizen account' : 'Sign in'}</h1>
             <p className="mt-2 text-sm leading-relaxed text-cream/60">
-              {creatingAccount ? 'New accounts are created as citizens. Administrative roles are provisioned by an authorized administrator.' : 'Choose a demo role or use an account provisioned in Supabase.'}
+              {creatingAccount
+                ? 'New accounts are created as citizens. Administrative roles are provisioned by an authorized administrator.'
+                : supabaseConfigured
+                  ? 'Sign-in uses the connected Supabase project. Demo accounts must be provisioned in that same project.'
+                  : 'Local preview mode is active. Choose a demo role to sign in on this device.'}
             </p>
             <form onSubmit={submit} className="mt-5 space-y-3">
               {creatingAccount && <><label className="block text-xs font-semibold text-cream/70" htmlFor="display-name">Name</label><input id="display-name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" /></>}
@@ -72,18 +77,25 @@ export function LoginPage() {
             {canRegister && <button type="button" onClick={() => { setCreatingAccount((current) => !current); setError(''); setNotice('') }} className="mt-3 text-xs font-semibold text-gold underline">{creatingAccount ? 'Already have an account? Sign in' : 'Create a citizen account'}</button>}
             <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-cream/50">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-leaf" />
-              Local demo sessions are for preview only. Configure Supabase Auth and seeded profiles for protected deployment.
+              {supabaseConfigured
+                ? 'Role access is read from each account’s Supabase profile. Local demo sessions are disabled while Supabase is connected.'
+                : 'Local demo sessions are for preview only. Configure Supabase Auth and seeded profiles for protected deployment.'}
             </p>
           </section>
 
           <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-gold">Demo accounts · password: CivicChai!2026</h2>
+            <p className="mt-1 text-[11px] leading-relaxed text-cream/45">
+              {supabaseConfigured
+                ? <>Connected mode: if a demo is missing, run <code className="text-cream/65">pnpm run seed:demo-users</code> with this project’s server credentials.</>
+                : 'Preview sessions are stored only in this browser.'}
+            </p>
             <div className="mt-3 space-y-2">
               {DEMO_ACCOUNTS.map((account) => (
                 <button
                   key={account.role}
                   type="button"
-                  onClick={() => { setEmail(account.email); setPassword(account.password); setError('') }}
+                  onClick={() => { setCreatingAccount(false); setEmail(account.email); setPassword(account.password); setError(''); setNotice('') }}
                   className="flex w-full items-center justify-between gap-3 rounded-lg border border-sidebar-border px-3 py-2 text-left transition hover:border-gold/70 hover:bg-sidebar-accent"
                 >
                   <span>

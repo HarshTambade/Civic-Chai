@@ -86,7 +86,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const normalizedEmail = email.trim().toLowerCase()
     if (supabase) {
       const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
-      if (error || !data.user) throw new Error('Invalid email or password')
+      if (error) {
+        const invalidCredentials = error.code === 'invalid_credentials' ||
+          (error.status === 400 && /invalid (login )?credentials/i.test(error.message))
+        if (invalidCredentials && DEMO_ACCOUNTS.some((account) => account.email === normalizedEmail)) {
+          throw new Error('These demo credentials were rejected by the connected Supabase project. Run pnpm run seed:demo-users with this project’s server credentials, then try again.')
+        }
+        if (invalidCredentials) throw new Error('Invalid email or password.')
+        throw new Error(error.message || 'Unable to reach Supabase Auth.')
+      }
+      if (!data.user) throw new Error('Supabase Auth did not return a user for this sign-in.')
       const { data: profile, error: profileError } = await supabase
         .from('profiles')
         .select('role, display_name, pin, department')
@@ -95,7 +104,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const nextUser = userFromProfile(data.user, profile)
       if (profileError || !nextUser) {
         await supabase.auth.signOut()
-        throw new Error('This account does not have an assigned CivicChai role.')
+        if (profileError) throw new Error('Supabase accepted the sign-in, but CivicChai could not read this account’s role profile. Check the database migrations and profile access policies.')
+        throw new Error('Supabase accepted the sign-in, but this account has no valid CivicChai role. Rerun the demo-user seed for demo accounts.')
       }
       setUser(nextUser)
       return nextUser
