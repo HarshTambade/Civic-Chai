@@ -1,32 +1,38 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
+
+declare global {
+  interface BeforeInstallPromptEvent extends Event {
+    prompt: () => Promise<void>
+    userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>
+  }
+  interface Window {
+    civicChaiInstallPrompt?: BeforeInstallPromptEvent
+  }
+}
 
 export function PwaRegister() {
-  const [isReady, setIsReady] = useState(false)
-
   useEffect(() => {
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(() => {
-          // service worker is optional and should not block app usage
-        })
-      })
+    if (!('serviceWorker' in navigator)) return
+    let active = true
+    const register = () => {
+      if (active) void navigator.serviceWorker.register('/sw.js', { scope: '/' }).catch((error) => console.warn('CivicChai offline mode could not start:', error))
     }
+    if (document.readyState === 'complete') register()
+    else window.addEventListener('load', register, { once: true })
 
-    const beforeInstall = () => setIsReady(true)
-    window.addEventListener('beforeinstallprompt', beforeInstall)
-
+    const onInstall = (event: Event) => {
+      event.preventDefault()
+      window.civicChaiInstallPrompt = event as BeforeInstallPromptEvent
+      window.dispatchEvent(new CustomEvent('civicchai:install-ready'))
+    }
+    window.addEventListener('beforeinstallprompt', onInstall)
     return () => {
-      window.removeEventListener('beforeinstallprompt', beforeInstall)
+      active = false
+      window.removeEventListener('load', register)
+      window.removeEventListener('beforeinstallprompt', onInstall)
     }
   }, [])
-
-  if (!isReady) return null
-
-  return (
-    <div className="sr-only" aria-live="polite">
-      Install CivicChai to keep your community updates available offline.
-    </div>
-  )
+  return null
 }

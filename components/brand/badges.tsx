@@ -12,6 +12,9 @@ export function StatusBadge({ status }: { status: IssueStatus }) {
     'In Progress': 'bg-terracotta/15 text-terracotta',
     Resolved: 'bg-leaf/15 text-leaf',
     'Community Verified': 'bg-leaf/20 text-leaf',
+    Closed: 'bg-leaf/15 text-leaf',
+    Duplicate: 'bg-gold/20 text-chai',
+    'Under Review': 'bg-terracotta/15 text-terracotta',
   }
   return (
     <span

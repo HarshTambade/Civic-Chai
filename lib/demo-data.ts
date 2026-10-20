@@ -6,7 +6,7 @@ export type Priority = IssuePriority
 
 export const LOCALITY = {
   pin: '401208',
-  name: 'Market Square, civic zone',
+  name: 'Demo jurisdiction · confirm your local area before reporting',
 }
 
 export const CATEGORIES = [

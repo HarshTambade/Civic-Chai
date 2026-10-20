@@ -60,10 +60,10 @@ export function SiteNav() {
             ))}
           </select>
           <Link
-            href="/control-room"
+            href="/login"
             className="rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10"
           >
-            {t.nav.authorityLogin}
+            Sign in
           </Link>
           <Link
             href="/citizen"
@@ -118,6 +118,13 @@ export function SiteNav() {
                 ))}
               </select>
             </div>
+            <Link
+              href="/login"
+              onClick={() => setOpen(false)}
+              className="rounded-lg px-3 py-2.5 text-sm font-semibold text-chai hover:bg-chai/10"
+            >
+              Sign in
+            </Link>
             <Link
               href="/citizen"
               className="mt-2 rounded-lg bg-chai px-4 py-2.5 text-center text-sm font-semibold text-cream"

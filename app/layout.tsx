@@ -1,29 +1,10 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Inter, Manrope, Noto_Sans_Devanagari } from 'next/font/google'
 import { PwaRegister } from '@/components/pwa-register'
+import { AuthProvider } from '@/components/auth-provider'
 import { StreeChat } from '@/components/stree-chat'
 import { LanguageProvider } from '@/components/language-provider'
 import './globals.css'
-
-const inter = Inter({
-  subsets: ['latin'],
-  variable: '--font-inter',
-  display: 'swap',
-})
-
-const manrope = Manrope({
-  subsets: ['latin'],
-  variable: '--font-manrope',
-  display: 'swap',
-})
-
-const notoDeva = Noto_Sans_Devanagari({
-  subsets: ['devanagari'],
-  weight: ['400', '500', '600', '700'],
-  variable: '--font-noto-deva',
-  display: 'swap',
-})
 
 export const metadata: Metadata = {
   title: 'CivicChai — India mein har ek Charcha Chai Pe hoti hai',
@@ -52,15 +33,14 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html
-      lang="en"
-      className={`${inter.variable} ${manrope.variable} ${notoDeva.variable} bg-background`}
-    >
+    <html lang="en" className="bg-background">
       <body className="antialiased">
         <LanguageProvider>
-          <PwaRegister />
-          {children}
-          <StreeChat />
+          <AuthProvider>
+            <PwaRegister />
+            {children}
+            <StreeChat />
+          </AuthProvider>
           {process.env.NODE_ENV === 'production' && <Analytics />}
         </LanguageProvider>
       </body>

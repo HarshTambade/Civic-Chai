@@ -1,6 +1,5 @@
 'use client'
 
-import { LOCALITY } from '@/lib/demo-data'
 import { ChaiCard } from '@/components/brand/chai-card'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { PriorityBadge } from '@/components/brand/badges'
@@ -14,7 +13,7 @@ export function LocalChai() {
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/issues')
+    fetch('/api/public/trending')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (!cancelled && Array.isArray(payload?.issues)) {
@@ -41,11 +40,11 @@ export function LocalChai() {
               Your Local Chai
             </span>
             <h2 className="mt-2 font-display text-3xl font-extrabold tracking-tight text-charcoal sm:text-4xl">
-              PIN {LOCALITY.pin}
+              Civic issues
             </h2>
             <p className="mt-1 flex items-center gap-1.5 text-sm text-charcoal/60">
               <MapPin className="h-4 w-4 text-terracotta" />
-              {LOCALITY.name}
+              Public feed · select your PIN in the Citizen Portal
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -71,12 +70,12 @@ export function LocalChai() {
 }
 
 export function ChaiTapri() {
-  const [issues, setIssues] = useState<IssueRecord[]>([])
+  const [issues, setIssues] = useState<Array<IssueRecord & { recentReports?: number; recentSupport?: number }>>([])
 
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/issues')
+    fetch('/api/public/trending')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (!cancelled && Array.isArray(payload?.issues)) {
@@ -92,7 +91,8 @@ export function ChaiTapri() {
     }
   }, [])
 
-  const ranked = [...issues].sort((a, b) => (b.chaiHeat ?? 0) - (a.chaiHeat ?? 0)).slice(0, 4)
+  const score = (issue: (typeof issues)[number]) => ((issue.recentReports ?? 0) * 2 + (issue.recentSupport ?? 0)) * 4 + (issue.priorityScore ?? 0) * 0.3 + issue.chaiHeat * 0.2
+  const ranked = [...issues].sort((a, b) => score(b) - score(a) || b.createdAt.localeCompare(a.createdAt)).slice(0, 4)
   return (
     <section id="tapri" className="border-y border-border bg-card">
       <div className="mx-auto max-w-4xl px-4 py-16 sm:px-6">

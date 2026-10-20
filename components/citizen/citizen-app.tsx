@@ -13,16 +13,18 @@ import {
   ProfileView,
 } from './views'
 import { Home, Flame, ScrollText, User, Plus, WifiOff, ArrowRight } from 'lucide-react'
-import { LOCALITY } from '@/lib/demo-data'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { MapPin } from 'lucide-react'
 import type { IssueRecord } from '@/lib/types'
 import { useLanguage } from '@/components/language-provider'
+import { useAuth } from '@/components/auth-provider'
+import { civicFetch } from '@/lib/client-api'
 
 type Tab = 'home' | 'tapri' | 'charcha' | 'profile'
 
 export function CitizenApp() {
   const { t } = useLanguage()
+  const { user } = useAuth()
   const NAV: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'home', label: t.citizenApp.tabs[0], icon: Home },
     { key: 'tapri', label: t.citizenApp.tabs[1], icon: Flame },
@@ -33,26 +35,39 @@ export function CitizenApp() {
   const [tab, setTab] = useState<Tab>('home')
   const [composerOpen, setComposerOpen] = useState(false)
   const [localHeat, setLocalHeat] = useState<number | null>(null)
+  const [area, setArea] = useState({ pin: '', locality: '' })
 
   useEffect(() => {
     let cancelled = false
+    const loadArea = async () => {
+      if (user?.demo || !user) {
+        try { const saved = localStorage.getItem(`civicchai_profile_settings:${user?.id ?? 'guest'}`); if (saved) { const parsed = JSON.parse(saved); if (!cancelled) setArea({ pin: parsed.preferred_pin ?? '', locality: parsed.locality ?? '' }) } } catch {}
+      } else {
+        try { const response = await civicFetch('/api/profile'); const payload = await response.json(); if (!cancelled && payload.profile) setArea({ pin: payload.profile.preferred_pin ?? '', locality: payload.profile.locality ?? '' }) } catch {}
+      }
+    }
+    void loadArea()
+    return () => { cancelled = true }
+  }, [user?.id, user?.demo])
 
-    fetch('/api/issues')
+  useEffect(() => {
+    let cancelled = false
+    fetch(`/api/public/issues${area.pin ? `?pin=${encodeURIComponent(area.pin)}` : ''}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (cancelled) return
         const issues: IssueRecord[] = Array.isArray(payload?.issues) ? payload.issues : []
         const topIssue = [...issues].sort((a, b) => (b.chaiHeat ?? 0) - (a.chaiHeat ?? 0))[0]
-        setLocalHeat(topIssue ? topIssue.chaiHeat : 82)
+        setLocalHeat(topIssue ? topIssue.chaiHeat : 0)
       })
       .catch(() => {
-        if (!cancelled) setLocalHeat(82)
+        if (!cancelled) setLocalHeat(0)
       })
 
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [area.pin])
 
   return (
     <main className="min-h-dvh bg-background text-charcoal">
@@ -96,17 +111,17 @@ export function CitizenApp() {
                 <p className="text-xs uppercase tracking-widest text-cream/60">{t.citizenApp.yourChai}</p>
                 <div className="mt-2 flex items-center justify-between">
                   <div>
-                    <p className="font-display text-3xl font-extrabold">PIN {LOCALITY.pin}</p>
+                    <p className="font-display text-3xl font-extrabold">{area.pin ? `PIN ${area.pin}` : 'Your local area'}</p>
                     <p className="mt-1 flex items-center gap-1.5 text-sm text-cream/75">
                       <MapPin className="h-3.5 w-3.5" />
-                      {LOCALITY.name}
+                      {area.locality || 'Choose your ward and PIN in Profile'}
                     </p>
                   </div>
-                  <ChaiHeatMeter heat={localHeat ?? 82} size="md" showLabel={false} className="text-cream" />
+                  <ChaiHeatMeter heat={localHeat ?? 0} size="md" showLabel={false} className="text-cream" />
                 </div>
               </div>
               <p className="mt-4 text-sm leading-relaxed text-charcoal/65">
-                {t.citizenApp.feedText} — {t.citizenApp.subtitle}
+                {area.pin ? t.citizenApp.feedText : 'The feed becomes locality-first after you choose your service area. Exact report locations are never used to infer where you live.'}
               </p>
             </div>
           </div>
@@ -182,7 +197,7 @@ function LocalChaiDesktopView() {
           {t.citizenApp.feedText}
         </h2>
         <p className="mt-1 text-sm text-charcoal/60">
-          Browse, support and discuss civic issues around PIN {LOCALITY.pin}
+          Browse public issues or save a service-area PIN in Profile to make this feed local.
         </p>
       </div>
       <LocalChaiView />

@@ -14,7 +14,7 @@ export function ReportPreview() {
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/issues')
+    fetch('/api/public/issues')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (!cancelled && Array.isArray(payload?.issues) && payload.issues.length > 0) {
@@ -30,7 +30,7 @@ export function ReportPreview() {
     }
   }, [])
 
-  const currentIssue = issue ?? {
+  const currentIssue: IssueRecord = issue ?? {
     documentId: 'CC-READY-000001',
     title: 'Community issue intake',
     locality: 'Your neighbourhood',
@@ -38,12 +38,13 @@ export function ReportPreview() {
       'This section will display a live civic issue as soon as the app receives data from the issue feed.',
     department: 'Municipal operations',
     pin: 'Local feed',
-    hub: 'Live system',
-    officer: 'Assigned by workflow',
+    hub: 'No verified authority hub',
+    officer: 'Assignment pending',
     priority: 'Moderate' as const,
     trust: 0,
     reports: 0,
     supporters: 0,
+    comments: 0,
     daysUnresolved: 0,
     status: 'Filed' as const,
     chaiHeat: 0,
@@ -93,7 +94,7 @@ export function ReportPreview() {
                 <Detail icon={Building2} k="Department" v={currentIssue.department} />
                 <Detail icon={MapPin} k="PIN Hub" v={`${currentIssue.pin} · ${currentIssue.hub}`} />
                 <Detail icon={ShieldCheck} k="Officer / Office" v={currentIssue.officer ?? 'Assigned by workflow'} />
-                <Detail icon={Phone} k="Official Contact" v="Live routing via Supabase" />
+                <Detail icon={Phone} k="Official Contact" v={currentIssue.isDemo ? 'No verified contact in this demo' : 'Shown only when authority verified'} />
               </dl>
 
               <div className="mt-5 flex flex-wrap items-center gap-3">

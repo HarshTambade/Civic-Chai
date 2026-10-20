@@ -67,6 +67,10 @@
 :root {
   color-scheme: light;
   --radius: 0.75rem;
+  /* System font stacks keep the PWA readable offline and avoid runtime font downloads. */
+  --font-inter: "Inter", "Noto Sans", ui-sans-serif, system-ui, sans-serif;
+  --font-manrope: "Manrope", "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-noto-deva: "Noto Sans Devanagari", "Nirmala UI", "Mangal", sans-serif;
 
   /* Raw brand colors */
   --chai: #6b3f24;

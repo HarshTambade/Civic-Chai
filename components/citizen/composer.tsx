@@ -5,6 +5,12 @@ import { cn } from '@/lib/utils'
 import { analyzeComplaintRequest } from '@/lib/ai'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import type { IssueRecord } from '@/lib/types'
+import { saveOfflineDraft } from '@/lib/offline-queue'
+import { civicFetch } from '@/lib/client-api'
+import { submitIssuePayload } from '@/lib/client-api'
+import { useAuth } from '@/components/auth-provider'
+import { PwaInstallButton } from '@/components/pwa-install-button'
+import Link from 'next/link'
 import {
   X,
   Mic,
@@ -45,6 +51,7 @@ function getSpeechRecognition(): SpeechRecognitionCtor | null {
 }
 
 export function Composer({ onClose }: { onClose: () => void }) {
+  const { user } = useAuth()
   const [step, setStep] = useState<Step>('compose')
   const [text, setText] = useState('')
   const [lang, setLang] = useState('Auto Detect')
@@ -53,6 +60,16 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [proofUrls, setProofUrls] = useState<string[]>([])
   const [locationLabel, setLocationLabel] = useState('')
+  const [pin, setPin] = useState('')
+  const [locality, setLocality] = useState('')
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null)
+  const [onlineConsent, setOnlineConsent] = useState(false)
+  const [offlineStorageConsent, setOfflineStorageConsent] = useState(false)
+  const [submissionState, setSubmissionState] = useState<'submitted' | 'queued' | 'error'>('submitted')
+  const [submissionError, setSubmissionError] = useState('')
+  const [submittedIssue, setSubmittedIssue] = useState<IssueRecord | null>(null)
+  const [distinctFromId, setDistinctFromId] = useState('')
+  const [forceDistinctId, setForceDistinctId] = useState('')
   const [isLocating, setIsLocating] = useState(false)
   const recognitionRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
@@ -61,6 +78,38 @@ export function Composer({ onClose }: { onClose: () => void }) {
     () => `CC-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.floor(Math.random() * 9000 + 1000)}`,
     [],
   )
+
+  useEffect(() => {
+    let cancelled = false
+    const localKey = `civicchai_profile_settings:${user?.id ?? 'guest'}`
+    if (user?.demo || !user) {
+      try {
+        const saved = localStorage.getItem(localKey)
+        if (saved) {
+          const profile = JSON.parse(saved) as { preferred_pin?: string; locality?: string; consent_preferences?: { online_ai?: boolean; device_location?: boolean; offline_storage?: boolean } }
+          if (!cancelled) {
+            setPin(profile.preferred_pin ?? '')
+            setLocality(profile.locality ?? '')
+            setOnlineConsent(Boolean(profile.consent_preferences?.online_ai))
+            setOfflineStorageConsent(Boolean(profile.consent_preferences?.offline_storage))
+          }
+        }
+      } catch {
+        // Invalid local preferences are ignored; the citizen can enter the area manually.
+      }
+    } else {
+      civicFetch('/api/profile').then((response) => response.ok ? response.json() : null).then((payload) => {
+        const profile = payload?.profile
+        if (!cancelled && profile) {
+          setPin(profile.preferred_pin ?? '')
+          setLocality(profile.locality ?? '')
+          setOnlineConsent(Boolean(profile.consent_preferences?.online_ai))
+          setOfflineStorageConsent(Boolean(profile.consent_preferences?.offline_storage))
+        }
+      }).catch(() => {})
+    }
+    return () => { cancelled = true }
+  }, [user?.id, user?.demo])
 
   useEffect(() => {
     const SpeechRecognition = getSpeechRecognition()
@@ -107,10 +156,16 @@ export function Composer({ onClose }: { onClose: () => void }) {
 
   async function analyze() {
     if (!text.trim()) return
+    if (pin.length !== 6 || !locality.trim()) {
+      setSubmissionError('Confirm a six-digit PIN and locality before classification.')
+      return
+    }
+    setSubmissionError('')
     setStep('analyzing')
-    const result = await analyzeComplaintRequest(text, lang)
+    const result = await analyzeComplaintRequest(text, lang, { pin, locality, hasEvidence: proofUrls.length > 0, onlineConsent })
     setAnalysis(result)
-    setStep(result.duplicateIssueFound ? 'duplicate' : 'result')
+    if (result.duplicateIssueFound && result.duplicateIssue?.id !== forceDistinctId) setStep('duplicate')
+    else setStep('result')
   }
 
   function toggleVoice() {
@@ -137,9 +192,16 @@ export function Composer({ onClose }: { onClose: () => void }) {
   function handleProofSelection(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
     if (!files.length) return
+    const maxSize = (file: File) => file.type.startsWith('video/') ? 15 * 1024 * 1024 : 4 * 1024 * 1024
+    const allowed = files.filter((file) => ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(file.type) && file.size <= maxSize(file))
+    if (allowed.length !== files.length || allowed.length + proofUrls.length > 3) {
+      setSubmissionError('Add up to three JPG/PNG/WebP images (4 MB each) or MP4/WebM videos (15 MB each).')
+      if (event.target) event.target.value = ''
+      return
+    }
 
     Promise.all(
-      files.map(
+      allowed.map(
         (file) =>
           new Promise<string>((resolve, reject) => {
             const reader = new FileReader()
@@ -151,6 +213,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
     )
       .then((dataUrls) => {
         setProofUrls((current) => [...current, ...dataUrls])
+        setSubmissionError('')
       })
       .catch((error) => {
         console.error('Failed to read proof files', error)
@@ -172,6 +235,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
         const { latitude, longitude } = position.coords
         const label = `Current location • ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`
         setLocationLabel(label)
+        setCoordinates({ lat: latitude, lng: longitude })
         setIsLocating(false)
       },
       () => {
@@ -183,51 +247,93 @@ export function Composer({ onClose }: { onClose: () => void }) {
   }
 
   function handleCallCivicChai() {
-    if (typeof window !== 'undefined') {
-      window.location.href = 'tel:+919999999999'
-    }
+    window.location.href = '/voice-agent'
   }
 
   async function submitReport() {
     if (!analysis) return
 
     setIsSubmitting(true)
+    setSubmissionError('')
     try {
-      const extractedPin = analysis.location.match(/\d{6}/)?.[0] ?? '401208'
-      const locality = locationLabel || analysis.location.replace(/PIN\s*\d{6}\s*·\s*/i, '').trim() || 'Market Square'
       const payload = {
         title: analysis.issue,
         description: text.trim(),
+        original_text: text.trim(),
+        normalized_text: analysis.summary,
         category: analysis.category,
         department: analysis.department,
-        pin: extractedPin,
-        locality,
+        pin: pin.trim(),
+        locality: locality.trim(),
+        distinct_from: distinctFromId || undefined,
         status: 'Filed' as const,
         priority: analysis.priority,
-        officer: 'Unassigned',
-        hub: 'Ward Operations Hub',
+        source_channel: 'pwa' as const,
+        language: analysis.language,
+        ai_confidence: analysis.confidence,
+        severity: analysis.severity,
+        location_lat: coordinates?.lat,
+        location_lng: coordinates?.lng,
+        consent: { online_ai: onlineConsent, device_location: Boolean(coordinates), private_evidence: proofUrls.length > 0, offline_storage: offlineStorageConsent },
         image_url: proofUrls[0] ?? undefined,
         image_urls: proofUrls.length ? proofUrls : undefined,
         evidence: proofUrls.length ? proofUrls : undefined,
       }
 
-      const response = await fetch('/api/issues', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      })
-
-      if (!response.ok) {
-        const errorBody = await response.json().catch(() => ({ error: 'Failed to create report' }))
-        throw new Error(errorBody.error ?? 'Failed to create report')
+      if (!navigator.onLine) {
+        if (!offlineStorageConsent) throw new Error('Allow temporary on-device draft storage before saving this complaint offline.')
+        const draft = await saveOfflineDraft(payload)
+        setSubmissionState('queued')
+        setSubmittedIssue({ id: draft.id, documentId: draft.id, title: payload.title, description: payload.description, category: payload.category, department: payload.department, pin: payload.pin, locality: payload.locality, status: 'Filed', priority: payload.priority, trust: 0, chaiHeat: 0, supporters: 0, reports: 1, comments: 0, daysUnresolved: 0, officer: 'Pending sync', hub: 'Pending sync', createdAt: draft.saved_at })
+        setStep('done')
+        setAnalysis((prev) => prev ? { ...prev, summary: 'Saved on this device. It will sync when a secure connection returns; it has not been submitted yet.' } : prev)
+        return
       }
 
-      const issue = (await response.json()) as IssueRecord
+      const issue = await submitIssuePayload(payload)
+      setSubmittedIssue(issue)
+      setDistinctFromId('')
+      setSubmissionState('submitted')
       setStep('done')
       setAnalysis((prev) => prev ? { ...prev, summary: `Report ${issue.documentId ?? issue.id} successfully filed for ${issue.department}.` } : prev)
     } catch (error) {
-      console.error('Issue submission failed', error)
-      setStep('done')
+      if (!navigator.onLine || error instanceof TypeError) {
+        try {
+          if (!offlineStorageConsent) throw new Error('Allow temporary on-device draft storage before saving this complaint offline.')
+          const payload = {
+            title: analysis.issue,
+            description: text.trim(),
+            original_text: text.trim(),
+            normalized_text: analysis.summary,
+            category: analysis.category,
+            department: analysis.department,
+            pin: pin.trim(),
+            locality: locality.trim(),
+            source_channel: 'pwa' as const,
+            language: analysis.language,
+            ai_confidence: analysis.confidence,
+            severity: analysis.severity,
+            location_lat: coordinates?.lat,
+            location_lng: coordinates?.lng,
+            consent: { online_ai: onlineConsent, device_location: Boolean(coordinates), private_evidence: proofUrls.length > 0, offline_storage: offlineStorageConsent },
+            image_url: proofUrls[0],
+            evidence_urls: proofUrls,
+          }
+          const draft = await saveOfflineDraft(payload)
+          setSubmissionState('queued')
+          setSubmittedIssue({ id: draft.id, documentId: draft.id, title: payload.title, description: payload.description, category: payload.category, department: payload.department, pin: payload.pin, locality: payload.locality, status: 'Filed', priority: analysis.priority, trust: 0, chaiHeat: 0, supporters: 0, reports: 1, comments: 0, daysUnresolved: 0, officer: 'Pending sync', hub: 'Pending sync', createdAt: draft.saved_at })
+          setAnalysis((prev) => prev ? { ...prev, summary: 'Saved on this device. It will sync when a secure connection returns; it has not been submitted yet.' } : prev)
+          setStep('done')
+        } catch (storageError) {
+          setSubmissionState('error')
+          setSubmissionError(storageError instanceof Error ? storageError.message : 'Unable to save a local draft.')
+          setStep('result')
+        }
+      } else {
+        setSubmissionState('error')
+        setSubmissionError(error instanceof Error ? error.message : 'Unable to submit. Your complaint remains in this form.')
+        setStep('result')
+      }
     } finally {
       setIsSubmitting(false)
     }
@@ -275,11 +381,20 @@ export function Composer({ onClose }: { onClose: () => void }) {
 
               <textarea
                 value={text}
-                onChange={(e) => setText(e.target.value)}
+                onChange={(e) => { setText(e.target.value); setDistinctFromId(''); setForceDistinctId('') }}
                 rows={3}
                 placeholder="e.g. Station road ki light 15 din se band hai..."
                 className="w-full resize-none rounded-xl border border-border bg-card p-3 text-sm text-charcoal outline-none placeholder:text-charcoal/40 focus:border-terracotta focus:ring-2 focus:ring-terracotta/20"
               />
+
+              <div className="grid grid-cols-2 gap-2">
+                <label className="text-xs font-semibold text-charcoal/65">PIN code
+                  <input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" maxLength={6} required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
+                </label>
+                <label className="text-xs font-semibold text-charcoal/65">Locality / ward
+                  <input value={locality} onChange={(event) => setLocality(event.target.value.slice(0, 120))} required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
+                </label>
+              </div>
 
               <div className="flex flex-wrap gap-2">
                 {LANGS.map((l) => (
@@ -302,7 +417,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
               <input
                 ref={fileInputRef}
                 type="file"
-                accept="image/*"
+                accept="image/jpeg,image/png,image/webp,video/mp4,video/webm"
                 multiple
                 className="hidden"
                 onChange={handleProofSelection}
@@ -334,7 +449,13 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   {proofUrls.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-1">
                       {proofUrls.map((url, index) => (
-                        <img
+                        url.startsWith('data:video/') ? <video
+                          key={`${url}-${index}`}
+                          src={url}
+                          aria-label={`Complaint proof video ${index + 1}`}
+                          controls
+                          className="h-16 w-28 rounded-lg object-cover"
+                        /> : <img
                           key={`${url}-${index}`}
                           src={url}
                           alt={`Complaint proof ${index + 1}`}
@@ -349,9 +470,21 @@ export function Composer({ onClose }: { onClose: () => void }) {
                 </div>
               )}
 
+              <label className="flex items-start gap-2 rounded-lg bg-muted/60 p-3 text-xs leading-relaxed text-charcoal/65">
+                <input type="checkbox" checked={onlineConsent} onChange={(event) => setOnlineConsent(event.target.checked)} className="mt-0.5 accent-chai" />
+                <span>Optional: allow this complaint text to be sent to the configured online AI provider for classification. Without consent, analysis stays in this app and uses its local rules-based model.</span>
+              </label>
+
+              <label className="flex items-start gap-2 rounded-lg border border-border p-3 text-xs leading-relaxed text-charcoal/65">
+                <input type="checkbox" checked={offlineStorageConsent} onChange={(event) => setOfflineStorageConsent(event.target.checked)} className="mt-0.5 accent-chai" />
+                <span>Allow a pending complaint and selected proof to stay temporarily in this browser on this device when offline. Anyone with access to this browser can view it. The draft is removed from local storage after a confirmed sync.</span>
+              </label>
+
+              {submissionError && <p role="alert" className="rounded-lg bg-heat/10 p-3 text-xs text-heat">{submissionError}</p>}
+
               <button
                 onClick={analyze}
-                disabled={step === 'analyzing' || (!text && step === 'compose')}
+                disabled={step === 'analyzing' || !text.trim() || pin.length !== 6 || !locality.trim()}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream disabled:opacity-50"
               >
                 {step === 'analyzing' ? (
@@ -366,10 +499,10 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   </>
                 )}
               </button>
-              <p className="text-center text-xs text-charcoal/50">
-                Offline? Draft &amp; voice save as &ldquo;Pending sync&rdquo; — not yet
-                officially submitted.
-              </p>
+              <div className="flex items-center justify-center gap-3 text-center text-xs text-charcoal/50">
+                <span>Offline drafts stay on this device until connection returns.</span>
+                <PwaInstallButton className="inline-flex items-center gap-1 font-semibold text-chai" />
+              </div>
             </div>
           )}
 
@@ -384,9 +517,10 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   ['Language', analysis.language],
                   ['Category', analysis.category],
                   ['Issue', analysis.issue],
-                  ['Location', analysis.location],
+                  ['Location', `${analysis.locality}, PIN ${analysis.pin}`],
                   ['Department', analysis.department],
                   ['Priority', analysis.priority],
+                  ['Priority score', `${analysis.priorityScore}/100`],
                 ].map(([k, v]) => (
                   <div
                     key={k}
@@ -439,23 +573,28 @@ export function Composer({ onClose }: { onClose: () => void }) {
               </div>
               <button
                 onClick={() => {
-                  setAnalysis((prev) =>
-                    prev
-                      ? {
-                          ...prev,
-                          summary: 'Support registered for the existing civic issue. The same concern is being tracked for community action.',
-                        }
-                      : prev,
-                  )
-                  setStep('done')
+                  if (!user) {
+                    setSubmissionError('Sign in to add support to an existing issue.')
+                    return
+                  }
+                  void civicFetch(`/api/issues/${analysis.duplicateIssue!.id}/support`, { method: 'POST' }).then(async (response) => {
+                    const data = await response.json()
+                    if (!response.ok) throw new Error(data.error ?? 'Unable to support this issue.')
+                    setSubmittedIssue(data.issue)
+                    setSubmissionState('submitted')
+                    setAnalysis((prev) => prev ? { ...prev, summary: `Support added to ${data.issue.documentId}. This report is now part of the community issue.` } : prev)
+                    setStep('done')
+                  }).catch((error) => setSubmissionError(error instanceof Error ? error.message : 'Unable to support this issue.'))
                 }}
                 className="flex w-full items-center justify-center gap-2 rounded-xl bg-heat px-4 py-3 text-sm font-semibold text-heat-foreground"
               >
                 <Flame className="h-4 w-4" />
                 Is Charcha ko Support Karo
               </button>
+              {!user && <p className="text-center text-xs text-charcoal/60">Please <Link href="/login" className="font-semibold text-chai underline">sign in</Link> to add account-linked support.</p>}
+              {submissionError && <p role="alert" className="text-xs text-heat">{submissionError}</p>}
               <button
-                onClick={() => setStep('compose')}
+                onClick={() => { setDistinctFromId(analysis.duplicateIssue!.id); setForceDistinctId(analysis.duplicateIssue!.id); setStep('compose'); setSubmissionError('You marked the suggested issue as different. Create a separate report to record that decision.') }}
                 className="w-full rounded-xl border border-border bg-card px-4 py-3 text-sm font-semibold text-charcoal"
               >
                 Yeh alag problem hai
@@ -470,15 +609,14 @@ export function Composer({ onClose }: { onClose: () => void }) {
               </span>
               <div>
                 <p className="font-display text-lg font-extrabold text-charcoal">
-                  Charcha shuru ho gayi!
+                  {submissionState === 'queued' ? 'Draft saved on this device' : submissionState === 'error' ? 'Report not submitted yet' : 'Charcha shuru ho gayi!'}
                 </p>
                 <p className="mt-1 text-sm text-charcoal/60">
                   {analysis ? analysis.summary : 'Your support was added. Track it in My Charcha.'}
                 </p>
               </div>
-              <p className="font-mono text-sm font-semibold text-chai">
-                {documentId}
-              </p>
+              <p className="font-mono text-sm font-semibold text-chai">{submittedIssue?.documentId ?? documentId}</p>
+              {submittedIssue && !submittedIssue.id.startsWith('draft-') && <Link href={`/issues/${encodeURIComponent(submittedIssue.id)}`} className="inline-flex w-full justify-center rounded-xl border border-chai/30 bg-chai/5 px-4 py-3 text-sm font-semibold text-chai">Open structured public report</Link>}
               <button
                 onClick={onClose}
                 className="w-full rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream"

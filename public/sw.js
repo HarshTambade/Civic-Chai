@@ -1,63 +1,87 @@
-const CACHE_NAME = 'civicchai-v2'
+const CACHE_VERSION = 'civicchai-v3'
+const SHELL_CACHE = `${CACHE_VERSION}-shell`
 const APP_SHELL = [
   '/',
   '/citizen',
-  '/control-room',
   '/chai-tapri',
-  '/how-it-works',
-  '/about',
+  '/voice-agent',
+  '/offline',
   '/manifest.webmanifest',
-  '/stree-avatar.svg',
-  '/placeholder-logo.svg',
-  '/placeholder-user.jpg',
+  '/icon.svg',
+  '/icon-192.png',
+  '/icon-512.png',
 ]
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL)),
+    caches.open(SHELL_CACHE).then(async (cache) => {
+      await Promise.allSettled(APP_SHELL.map((url) => cache.add(url)))
+    }),
   )
   self.skipWaiting()
 })
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) => Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)))),
+    caches.keys().then((keys) => Promise.all(
+      keys.filter((key) => !key.startsWith(CACHE_VERSION)).map((key) => caches.delete(key)),
+    )),
   )
   self.clients.claim()
 })
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return
+  const request = event.request
+  if (request.method !== 'GET') return
+  const url = new URL(request.url)
+  if (url.origin !== self.location.origin) return
 
-  const url = new URL(event.request.url)
-
-  if (url.origin === self.location.origin && url.pathname.startsWith('/api/')) {
-    event.respondWith(
-      fetch(event.request)
-        .then((response) => {
-          const clone = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone))
-          return response
-        })
-        .catch(async () => {
-          const cached = await caches.match(event.request)
-          return cached || Response.json({ issues: [] })
-        }),
-    )
+  if (url.pathname === '/api/public/issues' || url.pathname.startsWith('/api/public/issues/') || url.pathname === '/api/public/registry') {
+    event.respondWith((async () => {
+      const cache = await caches.open(`${CACHE_VERSION}-public-data`)
+      try {
+        const response = await fetch(request)
+        if (response.ok) await cache.put(request, response.clone())
+        return response
+      } catch {
+        const cached = await cache.match(request)
+        if (cached) return cached
+        const empty = url.pathname === '/api/public/registry'
+          ? { jurisdictions: [], hubs: [], officers: [], documents: [], sla_targets: [], offline: true }
+          : url.pathname.startsWith('/api/public/issues/')
+            ? { issue: null, offline: true }
+            : { issues: [], offline: true }
+        return Response.json(empty, { headers: { 'X-CivicChai-Offline': '1' } })
+      }
+    })())
     return
   }
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) return cached
+  if (request.mode === 'navigate') {
+    event.respondWith((async () => {
+      const path = url.pathname
+      const isPublicAppRoute = ['/', '/citizen', '/chai-tapri', '/voice-agent', '/about', '/how-it-works', '/offline'].includes(path) || path.startsWith('/issues/')
+      const cache = await caches.open(SHELL_CACHE)
+      try {
+        const response = await fetch(request)
+        if (response.ok && isPublicAppRoute) await cache.put(request, response.clone())
+        return response
+      } catch {
+        if (!isPublicAppRoute) return (await cache.match('/')) || (await cache.match('/offline')) || Response.error()
+        return (await cache.match(request)) || (await cache.match(path)) || (await cache.match('/')) || (await cache.match('/offline')) || Response.error()
+      }
+    })())
+    return
+  }
 
-      return fetch(event.request)
-        .then((response) => {
-          const copy = response.clone()
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy))
-          return response
-        })
-        .catch(() => caches.match('/') || caches.match('/citizen'))
-    }),
-  )
+  if (['style', 'script', 'image', 'font'].includes(request.destination)) {
+    event.respondWith((async () => {
+      const cache = await caches.open(SHELL_CACHE)
+      const cached = await cache.match(request)
+      if (cached) return cached
+      const response = await fetch(request)
+      if (response.ok) await cache.put(request, response.clone())
+      return response
+    })())
+  }
 })
