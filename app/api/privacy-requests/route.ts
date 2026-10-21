@@ -51,6 +51,7 @@ export async function PATCH(request: Request) {
     const status = String(body.status ?? '')
     if (!id || !['in_review', 'fulfilled', 'declined'].includes(status)) return NextResponse.json({ error: 'Choose a privacy request and a valid review status.' }, { status: 400 })
     const responseNote = safeComment(String(body.response_note ?? '').trim())
+    if (status !== 'in_review' && !responseNote) return NextResponse.json({ error: 'Add the action taken or the reason for declining this request before closing it.' }, { status: 400 })
     const { data, error } = await service.from('data_rights_requests').update({ status, response_note: responseNote || null, reviewed_by: auth.actor?.id, reviewed_at: new Date().toISOString() }).eq('id', id).select('id,user_id,request_type,status,response_note,reviewed_at').single()
     if (error) throw error
     await service.from('audit_logs').insert({ actor_id: auth.actor?.id, action: `privacy_request.${status}`, details: { request_id: id, request_type: data.request_type } })

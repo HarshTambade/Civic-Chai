@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { getSupabaseServiceClient } from '@/lib/supabase'
+import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
 
 type Bucket = { startedAt: number; count: number }
 const KEY = '__civicchai_rate_limit__'
@@ -11,11 +11,13 @@ function localBuckets() {
 }
 
 function requestIdentity(request: Request) {
-  const forwarded = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
-  return forwarded || request.headers.get('x-real-ip') || 'local-preview'
+  const platformIp = request.headers.get('x-real-ip')?.trim()
+  const forwardedChain = request.headers.get('x-forwarded-for')?.split(',').map((part) => part.trim()).filter(Boolean)
+  return platformIp || forwardedChain?.at(-1) || 'local-preview'
 }
 
-export async function consumeRateLimit(request: Request, bucket: string, limit: number, windowSeconds: number) {
+/** Returns null when the shared production limiter is unavailable; callers must respond 503. */
+export async function consumeRateLimit(request: Request, bucket: string, limit: number, windowSeconds: number): Promise<boolean | null> {
   const identity = createHash('sha256').update(`${bucket}:${requestIdentity(request)}`).digest('hex')
   const service = getSupabaseServiceClient()
   if (service) {
@@ -25,7 +27,10 @@ export async function consumeRateLimit(request: Request, bucket: string, limit: 
       p_limit: limit,
     })
     if (!error && typeof data === 'boolean') return data
+    console.error('Shared API rate limiter failed:', error?.message ?? 'Invalid RPC response')
   }
+
+  if (process.env.NODE_ENV === 'production' || hasSupabaseConfig()) return null
 
   const store = localBuckets()
   const now = Date.now()

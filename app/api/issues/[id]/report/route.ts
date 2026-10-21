@@ -10,7 +10,9 @@ const REASONS: ModerationReason[] = ['abuse', 'personal_data', 'spam', 'misinfor
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { actor, client, authenticated } = await getRequestContext(request)
   if (!authenticated || !actor?.id) return NextResponse.json({ error: 'Sign in to report content.' }, { status: 401 })
-  if (!(await consumeRateLimit(request, 'moderation-report', 5, 600))) return NextResponse.json({ error: 'Too many reports. Please try again later.' }, { status: 429 })
+  const rateLimit = await consumeRateLimit(request, 'moderation-report', 5, 600)
+  if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
+  if (!rateLimit) return NextResponse.json({ error: 'Too many reports. Please try again later.' }, { status: 429 })
   const { id } = await params
   const issue = await getIssueById(id, client)
   if (!issue) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })

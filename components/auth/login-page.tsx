@@ -6,7 +6,7 @@ import { ArrowRight, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { useAuth } from '@/components/auth-provider'
 import { DEMO_ACCOUNTS, ROLE_LABELS } from '@/lib/roles'
-import { hasSupabaseConfig } from '@/lib/supabase'
+import { hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
 
 export function LoginPage() {
   const router = useRouter()
@@ -19,6 +19,7 @@ export function LoginPage() {
   const [creatingAccount, setCreatingAccount] = useState(false)
   const [notice, setNotice] = useState('')
   const supabaseConfigured = hasSupabaseConfig()
+  const localDemoEnabled = isLocalDemoModeEnabled()
   const canRegister = supabaseConfigured
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -32,7 +33,7 @@ export function LoginPage() {
         router.replace('/citizen')
       } else {
         const account = await login({ email, password })
-        router.replace(account.role === 'citizen' ? '/citizen' : '/control-room')
+        router.replace(account.role === 'citizen' ? '/citizen' : account.demo ? '/control-room' : '/mfa')
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to sign in')
@@ -59,8 +60,8 @@ export function LoginPage() {
               {creatingAccount
                 ? 'New accounts are created as citizens. Administrative roles are provisioned by an authorized administrator.'
                 : supabaseConfigured
-                  ? 'Sign-in uses the connected Supabase project. Demo accounts must be provisioned in that same project.'
-                  : 'Local preview mode is active. Choose a demo role to sign in on this device.'}
+                  ? 'Sign-in uses the connected Supabase project. Staff roles complete authenticator setup before opening the authority portal.'
+                  : localDemoEnabled ? 'Local preview mode is active. Choose a demo role to sign in on this device.' : 'Authentication is unavailable. The production Supabase configuration is missing.'}
             </p>
             <form onSubmit={submit} className="mt-5 space-y-3">
               {creatingAccount && <><label className="block text-xs font-semibold text-cream/70" htmlFor="display-name">Name</label><input id="display-name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" /></>}
@@ -70,7 +71,7 @@ export function LoginPage() {
               <input id="password" type="password" autoComplete={creatingAccount ? 'new-password' : 'current-password'} minLength={creatingAccount ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" />
               {error && <p role="alert" className="rounded-lg bg-heat/15 p-3 text-sm text-heat">{error}</p>}
               {notice && <p role="status" className="rounded-lg bg-leaf/10 p-3 text-sm text-leaf">{notice}</p>}
-              <button disabled={isLoading} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-60">
+              <button disabled={isLoading || (!supabaseConfigured && !localDemoEnabled)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-60">
                 {isLoading ? creatingAccount ? 'Creating account…' : 'Signing in…' : creatingAccount ? 'Create account' : 'Continue'} <ArrowRight className="h-4 w-4" />
               </button>
             </form>
@@ -79,11 +80,11 @@ export function LoginPage() {
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-leaf" />
               {supabaseConfigured
                 ? 'Role access is read from each account’s Supabase profile. Local demo sessions are disabled while Supabase is connected.'
-                : 'Local demo sessions are for preview only. Configure Supabase Auth and seeded profiles for protected deployment.'}
+                : localDemoEnabled ? 'Local demo sessions are for preview only. Configure Supabase Auth and seeded profiles for protected deployment.' : 'Production login is disabled until Supabase is configured.'}
             </p>
           </section>
 
-          <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
+          {localDemoEnabled || supabaseConfigured ? <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-gold">Demo accounts · password: CivicChai!2026</h2>
             <p className="mt-1 text-[11px] leading-relaxed text-cream/45">
               {supabaseConfigured
@@ -106,7 +107,7 @@ export function LoginPage() {
                 </button>
               ))}
             </div>
-          </section>
+          </section> : null}
         </div>
       </div>
     </main>

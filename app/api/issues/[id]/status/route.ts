@@ -1,35 +1,72 @@
 import { NextResponse } from 'next/server'
 import { getFallbackIssueFollowers, getFallbackIssueSupporters, getIssueById, updateIssue } from '@/lib/issues'
 import { authorizeRoles } from '@/lib/api-auth'
-import { getSupabaseServiceClient } from '@/lib/supabase'
+import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
 import { addFallbackNotification } from '@/lib/notifications'
 
 const MANAGERS = ['department_operator', 'department_supervisor', 'authority_admin'] as const
 const VALID_STATUSES = ['Filed', 'AI Classified', 'Assigned', 'Acknowledged', 'In Progress', 'Resolved', 'Community Verified', 'Closed', 'Duplicate', 'Under Review']
+const OPERATIONAL_STATUSES = ['Acknowledged', 'In Progress', 'Resolved', 'Under Review']
+const SUPERVISOR_STATUSES = ['Assigned', ...OPERATIONAL_STATUSES, 'Closed']
+const AUTHORITY_STATUSES = ['Assigned', ...OPERATIONAL_STATUSES, 'Closed']
+
+function isOfficialEvidenceUrl(value: string) {
+  try {
+    const url = new URL(value)
+    return url.protocol === 'https:' && !url.username && !url.password && (url.hostname === 'gov.in' || url.hostname.endsWith('.gov.in') || url.hostname === 'nic.in' || url.hostname.endsWith('.nic.in'))
+  } catch {
+    return false
+  }
+}
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRoles(request, [...MANAGERS])
   if (auth.response) return auth.response
+  const service = getSupabaseServiceClient()
+  if (hasSupabaseConfig() && !service) return NextResponse.json({ error: 'Issue actions require the server-only Supabase key to record the audit trail.' }, { status: 503 })
   try {
     const body = await request.json()
     const status = body.status == null ? undefined : String(body.status)
     if (status && !VALID_STATUSES.includes(status)) return NextResponse.json({ error: 'Unsupported issue status.' }, { status: 400 })
     const { id } = await params
-    const before = status ? await getIssueById(id, auth.client) : null
+    const before = await getIssueById(id, auth.client)
+    if (!before) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
+    const role = auth.actor?.role
+    const allowedStatuses = role === 'department_operator' ? OPERATIONAL_STATUSES : role === 'department_supervisor' ? SUPERVISOR_STATUSES : AUTHORITY_STATUSES
+    if (status && status !== before.status && !allowedStatuses.includes(status)) return NextResponse.json({ error: 'This role cannot set that issue status. Duplicate and community verification decisions use their dedicated review flows.' }, { status: 403 })
+    if (status === 'Closed' && status !== before.status && before.status !== 'Resolved') return NextResponse.json({ error: 'An issue must be resolved before it can be closed.' }, { status: 409 })
     if (before && (auth.actor?.role === 'department_operator' || auth.actor?.role === 'department_supervisor') && (!auth.actor.department || !auth.actor.pin || before.department !== auth.actor.department || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your assigned department and PIN scope.' }, { status: 404 })
     if (before && auth.actor?.role === 'authority_admin' && (!auth.actor.pin || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your authorized jurisdiction.' }, { status: 404 })
+    const department = typeof body.department === 'string' && body.department.trim() ? body.department.trim().slice(0, 120) : undefined
+    let officer = typeof body.officer === 'string' && body.officer.trim() ? body.officer.trim().slice(0, 120) : undefined
+    if (role === 'department_operator' && (department !== undefined || officer !== undefined)) return NextResponse.json({ error: 'Department operators can update issue progress but cannot assign departments or officers.' }, { status: 403 })
+    if (role === 'department_supervisor' && department !== undefined) return NextResponse.json({ error: 'Department supervisors can assign within their existing department only.' }, { status: 403 })
+    if (service && department && department !== before.department) {
+      const { data: approvedDepartment, error: departmentError } = await service.from('departments').select('id').eq('name', department).limit(1).maybeSingle()
+      if (departmentError) return NextResponse.json({ error: 'The department registry is unavailable. Apply the CivicChai database migrations first.' }, { status: 503 })
+      if (!approvedDepartment) return NextResponse.json({ error: 'Route this issue to a department in the configured department registry.' }, { status: 400 })
+      if (!officer) officer = 'Assignment pending'
+    }
+    if (service && officer && officer !== before.officer && officer !== 'Assignment pending') {
+      const targetDepartment = department ?? before.department
+      const { data: approvedOfficer, error: officerError } = await service.from('officer_registry').select('id').eq('name', officer).eq('department', targetDepartment).eq('pin', before.pin).eq('is_verified', true).limit(1).maybeSingle()
+      if (officerError) return NextResponse.json({ error: 'The verified officer registry is unavailable. Apply the CivicChai database migrations first.' }, { status: 503 })
+      if (!approvedOfficer) return NextResponse.json({ error: 'Assign only an officer listed as verified for this department and PIN.' }, { status: 400 })
+    }
+    const resolutionEvidence = typeof body.resolutionEvidence === 'string' ? body.resolutionEvidence.trim() : ''
+    if (status === 'Resolved' && before.status !== 'Resolved' && !isOfficialEvidenceUrl(resolutionEvidence)) return NextResponse.json({ error: 'Add a public HTTPS resolution record from an official .gov.in or .nic.in source before marking this issue resolved.' }, { status: 400 })
+    if (resolutionEvidence && !isOfficialEvidenceUrl(resolutionEvidence)) return NextResponse.json({ error: 'Resolution evidence must use an official HTTPS .gov.in or .nic.in source.' }, { status: 400 })
     const issue = await updateIssue(id, {
       status: status as any,
-      department: typeof body.department === 'string' ? body.department.slice(0, 120) : undefined,
-      officer: typeof body.officer === 'string' ? body.officer.slice(0, 120) : undefined,
-      note: typeof body.note === 'string' ? body.note.slice(0, 2000) : undefined,
-      resolutionEvidence: typeof body.resolutionEvidence === 'string' ? body.resolutionEvidence.slice(0, 500) : undefined,
-    }, auth.actor?.id, auth.client)
+      department,
+      officer,
+      note: typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 2000) : undefined,
+      resolutionEvidence: resolutionEvidence || undefined,
+    }, auth.actor?.id, service ?? auth.client)
     if (!issue) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
     if (status && before?.status !== issue.status) {
       const title = `CivicChai update · ${issue.documentId}`
       const bodyText = `The issue status changed to ${issue.status}. Open the report to view the official timeline.`
-      const service = getSupabaseServiceClient()
       if (service) {
         const [{ data: storedIssue }, { data: follows }, { data: supports }] = await Promise.all([
           service.from('issues').select('created_by').eq('id', issue.id).maybeSingle(),

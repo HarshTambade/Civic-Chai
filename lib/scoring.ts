@@ -96,6 +96,7 @@ export type DuplicateCandidate = {
   issue: { id: string; documentId: string; title: string; pin: string; locality: string; department: string; status: string; chaiHeat: number; reports: number; supporters: number }
   similarity: number
   band: 'strong' | 'related'
+  signals: string[]
 }
 
 export function findDuplicateCandidates<T extends {
@@ -111,19 +112,30 @@ export function findDuplicateCandidates<T extends {
   reports: number
   supporters: number
   category?: string
-}>(input: { text: string; pin?: string; locality?: string; department?: string; category?: string }, issues: T[]): DuplicateCandidate[] {
+  createdAt?: string
+  hasEvidence?: boolean
+}>(input: { text: string; pin?: string; locality?: string; department?: string; category?: string; hasEvidence?: boolean }, issues: T[]): DuplicateCandidate[] {
   const candidates = issues.map((issue) => {
     const samePin = Boolean(input.pin && issue.pin === input.pin)
     if (!samePin) return null
     const sameLocality = Boolean(input.locality && issue.locality.toLowerCase() === input.locality.toLowerCase())
     const sameDepartment = Boolean(input.department && issue.department.toLowerCase() === input.department.toLowerCase())
     const sameCategory = Boolean(input.category && issue.category && issue.category.toLowerCase() === input.category.toLowerCase())
-    if (input.category && issue.category && !sameCategory) return null
     const semantic = textSimilarity(input.text, `${issue.title} ${issue.description}`)
-    const location = sameLocality ? 1 : 0.82
+    const location = sameLocality ? 1 : input.locality ? 0.82 : 0.6
     const category = sameCategory ? 1 : sameDepartment ? 0.8 : 0.55
-    const score = Math.round((semantic * 0.68 + location * 0.17 + category * 0.15) * 100)
+    const ageDays = issue.createdAt ? Math.max(0, (Date.now() - Date.parse(issue.createdAt)) / 86_400_000) : 30
+    const timeProximity = ageDays <= 7 ? 1 : ageDays <= 30 ? 0.8 : ageDays <= 90 ? 0.55 : 0.3
+    const evidenceSignal = input.hasEvidence && issue.hasEvidence ? 1 : input.hasEvidence || issue.hasEvidence ? 0.5 : 0
+    const score = Math.round((semantic * 0.6 + location * 0.15 + category * 0.12 + timeProximity * 0.05 + evidenceSignal * 0.08) * 100)
     if (score < 60) return null
+    const signals = [
+      semantic >= 0.25 ? 'similar wording' : '',
+      sameLocality ? 'same locality' : 'same PIN',
+      sameCategory ? 'same category' : sameDepartment ? 'same department' : '',
+      ageDays <= 30 ? 'reported within 30 days' : '',
+      input.hasEvidence && issue.hasEvidence ? 'both reports have evidence' : '',
+    ].filter(Boolean)
     return {
       issue: {
         id: issue.id,
@@ -139,6 +151,7 @@ export function findDuplicateCandidates<T extends {
       },
       similarity: score / 100,
       band: score >= 90 ? 'strong' as const : 'related' as const,
+      signals,
     }
   }).filter((candidate): candidate is DuplicateCandidate => candidate !== null)
   return candidates.sort((a, b) => b.similarity - a.similarity).slice(0, 3)

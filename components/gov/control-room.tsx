@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { cn } from '@/lib/utils'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/logo'
@@ -78,7 +79,8 @@ const ROLE_HEADER: Partial<Record<AppRole, { title: string; sub: string }>> = {
 }
 
 export function ControlRoom() {
-  const { logout, user } = useAuth()
+  const { logout, user, mfaVerified, isHydrated } = useAuth()
+  const router = useRouter()
   const [tab, setTab] = useState<Tab>(() => ROLE_HOME[user?.role ?? 'authority_admin'])
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; issue_id: string | null; read_at: string | null; created_at: string }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
@@ -86,6 +88,10 @@ export function ControlRoom() {
   const head = roleHeader && tab === ROLE_HOME[user?.role ?? 'authority_admin']
     ? roleHeader
     : TITLES[tab]
+  useEffect(() => {
+    if (isHydrated && user && user.role !== 'citizen' && !user.demo && !mfaVerified) router.replace('/mfa')
+  }, [isHydrated, user, mfaVerified, router])
+
   useEffect(() => {
     let cancelled = false
     civicFetch('/api/notifications').then((response) => response.ok ? response.json() : null).then((payload) => {

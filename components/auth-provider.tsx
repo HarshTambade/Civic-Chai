@@ -1,13 +1,15 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getSupabaseClient } from '@/lib/supabase'
+import { getSupabaseClient, isLocalDemoModeEnabled } from '@/lib/supabase'
 import { DEMO_ACCOUNTS, isAppRole, type AppRole, type AppUser } from '@/lib/roles'
 
 type Credentials = { email: string; password: string }
 type Registration = Credentials & { name: string }
 type AuthContextType = {
   user: AppUser | null
+  mfaVerified: boolean
+  refreshMfa: () => Promise<boolean>
   isAuthenticated: boolean
   isHydrated: boolean
   login: (credentials: Credentials) => Promise<AppUser>
@@ -36,6 +38,7 @@ function userFromProfile(
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AppUser | null>(null)
+  const [mfaVerified, setMfaVerified] = useState(false)
   const [isHydrated, setIsHydrated] = useState(false)
   const supabase = useMemo(() => getSupabaseClient(), [])
 
@@ -50,26 +53,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session) {
           const { data: profile } = await supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle()
           const nextUser = userFromProfile(session.user, profile)
-          if (mounted) setUser(nextUser)
+          const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
+            ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
+            : { data: { currentLevel: 'aal2' as const } }
+          if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
         }
         const { data: authState } = supabase.auth.onAuthStateChange((_event, session) => {
           if (!mounted || !session) {
-            if (mounted) setUser(null)
+            if (mounted) { setUser(null); setMfaVerified(false) }
             return
           }
-          const nextUser = userFromProfile(session.user)
-          if (nextUser) setUser(nextUser)
-          void supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle().then(({ data: profile }) => {
-            if (mounted) setUser(userFromProfile(session.user, profile))
+          void supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle().then(async ({ data: profile }) => {
+            const nextUser = userFromProfile(session.user, profile)
+            const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
+              ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
+              : { data: { currentLevel: 'aal2' as const } }
+            if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
           })
         })
         authSubscription = authState.subscription
-      } else {
+      } else if (isLocalDemoModeEnabled()) {
         try {
         const saved = localStorage.getItem(DEMO_SESSION_KEY)
           if (saved) {
             const parsed = JSON.parse(saved) as AppUser
-            if (isAppRole(parsed.role)) setUser({ ...parsed, demo: true })
+            if (isAppRole(parsed.role)) { setUser({ ...parsed, demo: true }); setMfaVerified(true) }
           }
         } catch {
           localStorage.removeItem(DEMO_SESSION_KEY)
@@ -107,15 +115,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (profileError) throw new Error('Supabase accepted the sign-in, but CivicChai could not read this account’s role profile. Check the database migrations and profile access policies.')
         throw new Error('Supabase accepted the sign-in, but this account has no valid CivicChai role. Rerun the demo-user seed for demo accounts.')
       }
+      const { data: assurance } = nextUser.role === 'citizen'
+        ? { data: { currentLevel: 'aal2' as const } }
+        : await supabase.auth.mfa.getAuthenticatorAssuranceLevel(data.session?.access_token)
       setUser(nextUser)
+      setMfaVerified(assurance?.currentLevel === 'aal2')
       return nextUser
     }
 
+    if (!isLocalDemoModeEnabled()) throw new Error('Authentication is unavailable. Configure the production Supabase URL and publishable key.')
     const account = DEMO_ACCOUNTS.find((item) => item.email === normalizedEmail && item.password === password)
     if (!account) throw new Error('Invalid email or password')
     const { password: _password, ...demoUser } = account
     localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demoUser))
     setUser(demoUser)
+    setMfaVerified(true)
     return demoUser
   }
 
@@ -135,6 +149,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error('The account was created but its citizen profile is not ready yet. Check your email or sign in again shortly.')
     }
     setUser(nextUser)
+    setMfaVerified(true)
     return nextUser
   }
 
@@ -142,16 +157,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (supabase) await supabase.auth.signOut()
     localStorage.removeItem(DEMO_SESSION_KEY)
     setUser(null)
+    setMfaVerified(false)
+  }
+
+  const refreshMfa = async () => {
+    if (!supabase) return isLocalDemoModeEnabled()
+    const { data: sessionData } = await supabase.auth.getSession()
+    if (!sessionData.session) { setMfaVerified(false); return false }
+    const { data: assurance, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(sessionData.session.access_token)
+    const verified = !error && assurance?.currentLevel === 'aal2'
+    setMfaVerified(verified)
+    return verified
   }
 
   const value = useMemo<AuthContextType>(() => ({
     user,
+    mfaVerified,
+    refreshMfa,
     isAuthenticated: Boolean(user),
     isHydrated,
     login,
     register,
     logout,
-  }), [user, isHydrated])
+  }), [user, mfaVerified, isHydrated])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }
@@ -161,6 +189,8 @@ export function useAuth() {
   if (!context) {
     return {
       user: null,
+      mfaVerified: false,
+      refreshMfa: async () => false,
       isAuthenticated: false,
       isHydrated: false,
       login: async () => { throw new Error('AuthProvider is not available') },

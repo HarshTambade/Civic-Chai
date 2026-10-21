@@ -35,7 +35,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const { issue, auth, service } = loaded
     if (!issue || !auth) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
     const issues = await getIssues(service ?? auth.client, Boolean(service))
-    const candidates = findDuplicateCandidates({ text: `${issue.title} ${issue.description}`, pin: issue.pin, locality: issue.locality, department: issue.department, category: issue.category }, issues.filter((candidate) => candidate.id !== issue.id && isInScope(auth.actor, candidate)))
+    const candidates = findDuplicateCandidates({ text: `${issue.title} ${issue.description}`, pin: issue.pin, locality: issue.locality, department: issue.department, category: issue.category, hasEvidence: issue.hasEvidence }, issues.filter((candidate) => candidate.id !== issue.id && isInScope(auth.actor, candidate)))
     if (!service) return NextResponse.json({ candidates, links: getFallbackDuplicateLinks().filter((link) => link.issue_a === issue.id || link.issue_b === issue.id) })
     const { data: links, error } = await service.from('duplicate_links').select('id,issue_a,issue_b,similarity,decision,previous_status,decided_at').or(`issue_a.eq.${issue.id},issue_b.eq.${issue.id}`).order('created_at', { ascending: false })
     if (error) return NextResponse.json({ error: 'Unable to load duplicate decisions.' }, { status: 500 })

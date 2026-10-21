@@ -1,13 +1,14 @@
 import { NextResponse } from 'next/server'
 import { createIssue, getIssues } from '@/lib/issues'
 import { getRequestContext } from '@/lib/api-auth'
-import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
+import { getSupabaseServiceClient, hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
 import { recordFallbackAudit } from '@/lib/audit'
 import { canManageIssues } from '@/lib/roles'
 import { toPublicIssue } from '@/lib/privacy'
 import { consumeRateLimit } from '@/lib/rate-limit'
 
 export async function GET(request: Request) {
+  if (process.env.NODE_ENV === 'production' && !hasSupabaseConfig()) return NextResponse.json({ error: 'Civic issue storage is not configured.' }, { status: 503 })
   const { client, actor } = await getRequestContext(request)
   const { searchParams } = new URL(request.url)
   const status = searchParams.get('status')
@@ -37,7 +38,9 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
-    if (!(await consumeRateLimit(request, 'issue-create', 8, 600))) return NextResponse.json({ error: 'Too many reports from this connection. Please try again later.' }, { status: 429 })
+    const rateLimit = await consumeRateLimit(request, 'issue-create', 8, 600)
+    if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
+    if (!rateLimit) return NextResponse.json({ error: 'Too many reports from this connection. Please try again later.' }, { status: 429 })
     const body = await request.json()
     const { client, actor } = await getRequestContext(request)
     const title = String(body.title ?? '').trim().slice(0, 140)
@@ -50,7 +53,18 @@ export async function POST(request: Request) {
     }
 
     const writer = hasSupabaseConfig() ? getSupabaseServiceClient() : null
+    if (process.env.NODE_ENV === 'production' && !writer) return NextResponse.json({ error: 'Complaint intake is unavailable until the server-only database configuration is complete.' }, { status: 503 })
     if (hasSupabaseConfig() && !writer) return NextResponse.json({ error: 'Complaint intake is not configured. Set the server-only Supabase service key.' }, { status: 503 })
+    const submittedEvidence = Array.isArray(body.image_urls) ? body.image_urls : Array.isArray(body.evidence) ? body.evidence : Array.isArray(body.evidence_urls) ? body.evidence_urls : []
+    const validEvidencePath = (value: unknown) => {
+      if (typeof value !== 'string') return false
+      if (isLocalDemoModeEnabled() && value.length <= 6 * 1024 * 1024 && /^data:image\/(jpeg|png|webp);base64,[A-Za-z0-9+/=]+$/.test(value)) return true
+      if (value.length > 160) return false
+      return Boolean(actor?.id && new RegExp(`^${actor.id}/[0-9a-f-]{36}\\.(jpg|png|webp|mp4|webm)$`, 'i').test(value))
+    }
+    if (!Array.isArray(submittedEvidence) || submittedEvidence.length > 5 || submittedEvidence.some((value: unknown) => !validEvidencePath(value))) {
+      return NextResponse.json({ error: 'Evidence must be uploaded to your private account before filing this report.' }, { status: 400 })
+    }
     const distinctFrom = typeof body.distinct_from === 'string' ? body.distinct_from : ''
     const relatedIssue = distinctFrom
       ? (await getIssues(writer ?? client, true)).find((row) => row.id === distinctFrom) ?? null
@@ -73,9 +87,7 @@ export async function POST(request: Request) {
       location_lng: body.consent?.device_location === true && Number.isFinite(Number(body.location_lng)) ? Number(body.location_lng) : undefined,
       created_by: actor?.id,
       consent: body.consent && typeof body.consent === 'object' ? body.consent : {},
-      image_url: body.image_url,
-      image_urls: Array.isArray(body.image_urls) ? body.image_urls : Array.isArray(body.evidence) ? body.evidence : undefined,
-      evidence: Array.isArray(body.evidence_urls) ? body.evidence_urls : Array.isArray(body.evidence) ? body.evidence : undefined,
+      image_urls: submittedEvidence,
     }, writer ?? client)
 
     if (relatedIssue) {

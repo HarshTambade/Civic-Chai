@@ -23,6 +23,10 @@ export interface IssueRecord {
   department: string
   pin: string
   locality: string
+  state?: string
+  district?: string
+  municipality?: string
+  ward?: string
   status: IssueStatus
   priority: IssuePriority
   trust: number
@@ -58,6 +62,7 @@ export interface IssueRecord {
   isDemo?: boolean
   duplicateOf?: string
   duplicateDecision?: string
+  hasEvidence?: boolean
 }
 
 export interface CreateIssueInput {

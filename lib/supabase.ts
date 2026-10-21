@@ -39,6 +39,11 @@ export function hasSupabaseConfig() {
   )
 }
 
+/** Browser-only role simulation is strictly a local preview feature. */
+export function isLocalDemoModeEnabled() {
+  return process.env.NODE_ENV !== 'production' && !hasSupabaseConfig()
+}
+
 export function getSupabaseServiceClient() {
   if (typeof window !== 'undefined') return null
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_SUPABASE_URL

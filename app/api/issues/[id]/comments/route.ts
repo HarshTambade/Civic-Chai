@@ -11,7 +11,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  if (!(await consumeRateLimit(request, 'comment-create', 12, 120))) return NextResponse.json({ error: 'Too many comments from this connection. Please try again later.' }, { status: 429 })
+  const rateLimit = await consumeRateLimit(request, 'comment-create', 12, 120)
+  if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
+  if (!rateLimit) return NextResponse.json({ error: 'Too many comments from this connection. Please try again later.' }, { status: 429 })
   const { actor, client, authenticated } = await getRequestContext(request)
   if (!authenticated || !actor?.role || !APP_ROLES.includes(actor.role)) {
     return NextResponse.json({ error: 'Sign in to join the discussion.' }, { status: 401 })

@@ -8,9 +8,11 @@
 
 The runnable Next.js app, PWA, API routes and Supabase setup are in this repository. Copy .env.example to .env.local; for a local UI demo, leave Supabase settings blank and sign in with any role account in the login screen. The local demo uses browser storage and is not durable authentication.
 
-For a connected deployment, apply supabase/migrations/001_init.sql and supabase/migrations/002_civicchai_platform.sql in order, then supabase/seed.sql. Set the Supabase values in .env.local, run npm run seed:demo-users, then npm run dev. The role demo accounts and their shared password are documented in the Supabase setup guide.
+For a connected deployment, apply supabase/migrations/001_init.sql, supabase/migrations/002_civicchai_platform.sql and supabase/migrations/003_pilot_hardening.sql in order, then supabase/seed.sql. Set the Supabase values in .env.local, run `pnpm run seed:demo-users`, then `pnpm dev`. The role demo accounts and their shared password are documented in the Supabase setup guide. Staff demo accounts require one-time TOTP MFA enrollment in connected mode.
 
 The registry starts empty because the SOP prohibits invented public contacts, legal references and SLAs. Sign in as the authority administrator, create the jurisdiction, and add source-backed hub, office, document and optional service-target records before presenting them as verified.
+
+See [Pilot readiness](docs/PILOT_READINESS.md) for the SOP coverage audit and the external setup and acceptance steps required before real submissions.
 
 ---
 

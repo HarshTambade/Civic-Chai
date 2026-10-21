@@ -18,7 +18,7 @@ export function CivicTimeline({
   issueId?: string
   className?: string
 }) {
-  const [events, setEvents] = useState<Array<{ id: string; old_status?: string | null; new_status: string; note?: string | null; created_at: string }>>([])
+  const [events, setEvents] = useState<Array<{ id: string; old_status?: string | null; new_status: string; note?: string | null; evidence_url?: string; created_at: string }>>([])
   useEffect(() => {
     if (!issueId) return
     let cancelled = false
@@ -77,7 +77,7 @@ export function CivicTimeline({
         )
       })}
     </ol>
-    {events.length > 0 && <ol aria-label="Recorded status events" className="mt-4 space-y-2 border-t border-border pt-3">{events.map((event) => <li key={event.id} className="border-l-2 border-terracotta/50 pl-3"><p className="text-xs font-semibold text-foreground">{event.old_status ? `${event.old_status} → ` : ''}{event.new_status}</p><p className="text-[10px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.note && <p className="mt-1 text-xs text-muted-foreground">{event.note}</p>}</li>)}</ol>}
+    {events.length > 0 && <ol aria-label="Recorded status events" className="mt-4 space-y-2 border-t border-border pt-3">{events.map((event) => <li key={event.id} className="border-l-2 border-terracotta/50 pl-3"><p className="text-xs font-semibold text-foreground">{event.old_status ? `${event.old_status} → ` : ''}{event.new_status}</p><p className="text-[10px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.note && <p className="mt-1 text-xs text-muted-foreground">{event.note}</p>}{event.evidence_url && <a href={event.evidence_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-medium text-primary underline">Open official resolution evidence</a>}</li>)}</ol>}
     </div>
   )
 }

@@ -158,7 +158,7 @@ export function ComplaintsView() {
   const [selected, setSelected] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [issues, setIssues] = useState<IssueRecord[]>([])
-  const [filters, setFilters] = useState({ department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })
+  const [filters, setFilters] = useState({ state: '', district: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })
 
   async function loadIssues() {
     const res = await civicFetch('/api/issues')
@@ -188,6 +188,10 @@ export function ComplaintsView() {
   const rows = issues.filter((i) =>
     `${i.title} ${i.description} ${i.documentId} ${i.locality}`.toLowerCase().includes(query.toLowerCase()) &&
     (!filters.department || i.department === filters.department) &&
+    (!filters.state || i.state === filters.state) &&
+    (!filters.district || i.district === filters.district) &&
+    (!filters.municipality || i.municipality === filters.municipality) &&
+    (!filters.ward || i.ward === filters.ward) &&
     (!filters.category || i.category === filters.category) &&
     (!filters.pin || i.pin === filters.pin) &&
     (!filters.locality || i.locality === filters.locality) &&
@@ -200,6 +204,10 @@ export function ComplaintsView() {
   )
   const active = issues.find((i) => i.id === selected)
   const options = {
+    state: [...new Set(issues.map((i) => i.state).filter((value): value is string => Boolean(value)))],
+    district: [...new Set(issues.map((i) => i.district).filter((value): value is string => Boolean(value)))],
+    municipality: [...new Set(issues.map((i) => i.municipality).filter((value): value is string => Boolean(value)))],
+    ward: [...new Set(issues.map((i) => i.ward).filter((value): value is string => Boolean(value)))],
     department: [...new Set(issues.map((i) => i.department))],
     category: [...new Set(issues.map((i) => i.category))],
     pin: [...new Set(issues.map((i) => i.pin))],
@@ -229,7 +237,7 @@ export function ComplaintsView() {
             <option value="">All {filter === 'source' ? 'channels' : filter === 'period' ? 'dates' : filter === 'sla' ? 'SLA states' : filter}</option>{options[filter].map((option) => <option key={option} value={option}>{filter === 'source' ? option.toUpperCase() : filter === 'period' ? `Last ${option} days` : option}</option>)}
           </select>
         ))}
-        <button onClick={() => setFilters({ department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })} className="rounded-md border border-sidebar-border px-3 py-2 text-xs text-cream/60">Clear</button>
+        <button onClick={() => setFilters({ state: '', district: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })} className="rounded-md border border-sidebar-border px-3 py-2 text-xs text-cream/60">Clear</button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-sidebar-border">
@@ -304,10 +312,16 @@ function IssueDetail({
   const [message, setMessage] = useState('')
   const [evidence, setEvidence] = useState<Array<{ id: string; media_type: string; caption?: string; created_at?: string; url: string }>>([])
   const [evidenceNotice, setEvidenceNotice] = useState('Loading protected evidence…')
-  const [duplicateCandidates, setDuplicateCandidates] = useState<Array<{ issue: { id: string; documentId: string; title: string; pin: string; locality: string; status: string }; similarity: number; band: string }>>([])
+  const [duplicateCandidates, setDuplicateCandidates] = useState<Array<{ issue: { id: string; documentId: string; title: string; pin: string; locality: string; status: string }; similarity: number; band: string; signals: string[] }>>([])
   const [duplicateNotice, setDuplicateNotice] = useState('')
   const [verifiedRegistry, setVerifiedRegistry] = useState<{ hubs: Array<{ id: string; name: string; address: string; public_phone?: string; public_email?: string; source_url: string }>; officers: Array<{ id: string; name: string; role: string; department: string; public_phone?: string; public_email?: string; source_url: string }>; documents: Array<{ id: string; title: string; authority: string; source_url: string; published_at: string }> }>({ hubs: [], officers: [], documents: [] })
   const canReviewDuplicates = canModerate(role) || role === 'department_supervisor'
+  const canChangeDepartment = role === 'authority_admin'
+  const canAssignOfficer = role === 'department_supervisor' || role === 'authority_admin'
+  const statusChoices = [...new Set([
+    issue.status,
+    ...(role === 'department_operator' ? ['Acknowledged', 'In Progress', 'Resolved', 'Under Review'] : ['Assigned', 'Acknowledged', 'In Progress', 'Resolved', 'Under Review', 'Closed']),
+  ])]
 
   useEffect(() => {
     if (!canReviewDuplicates) return
@@ -334,7 +348,7 @@ function IssueDetail({
     return () => { cancelled = true }
   }, [issue.pin])
 
-  const verifiedOfficers = verifiedRegistry.officers.filter((record) => record.department === issue.department)
+  const verifiedOfficers = verifiedRegistry.officers.filter((record) => record.department === department)
 
   async function saveAction(event: React.FormEvent) {
     event.preventDefault()
@@ -344,7 +358,7 @@ function IssueDetail({
       const response = await civicFetch(`/api/issues/${issue.id}/status`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status, department, officer, note, resolutionEvidence }),
+        body: JSON.stringify({ status, ...(canChangeDepartment ? { department } : {}), ...(canAssignOfficer ? { officer } : {}), note, resolutionEvidence }),
       })
       const payload = await response.json()
       if (!response.ok) throw new Error(payload.error ?? 'Unable to save this action.')
@@ -452,17 +466,17 @@ function IssueDetail({
           </div>
         </Section>
 
-        {canReviewDuplicates && <Section title="Duplicate review"><p className="text-xs leading-relaxed text-cream/55">Suggestions are PIN-scoped and never merge automatically. A merge preserves both reports and can be reversed.</p>{duplicateNotice && <p role="status" className="mt-2 text-xs text-gold">{duplicateNotice}</p>}{duplicateCandidates.map((candidate) => <div key={candidate.issue.id} className="mt-3 rounded-md border border-sidebar-border bg-sidebar-accent p-3"><p className="text-xs font-semibold text-cream">{candidate.issue.title}</p><p className="mt-1 text-[10px] text-cream/50">{candidate.issue.documentId} · {candidate.similarity}% match · {candidate.band}</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => void decideDuplicate('merged', candidate.issue.id)} className="rounded bg-gold px-2 py-1 text-[10px] font-semibold text-charcoal">Link as duplicate</button><button type="button" onClick={() => void decideDuplicate('distinct', candidate.issue.id)} className="rounded border border-sidebar-border px-2 py-1 text-[10px] text-cream/70">Keep separate</button></div></div>)}{issue.duplicateOf && <button type="button" onClick={() => void decideDuplicate('unmerged')} className="mt-3 rounded border border-sidebar-border px-3 py-2 text-xs text-cream/70">Reverse merge</button>}{!duplicateCandidates.length && !issue.duplicateOf && !duplicateNotice && <p className="mt-2 text-xs text-cream/50">No same-PIN candidates above the suggestion threshold.</p>}</Section>}
+        {canReviewDuplicates && <Section title="Duplicate review"><p className="text-xs leading-relaxed text-cream/55">Suggestions rank similar wording, locality, category, time and evidence presence within the same PIN. They never merge automatically. A merge preserves both reports and can be reversed.</p>{duplicateNotice && <p role="status" className="mt-2 text-xs text-gold">{duplicateNotice}</p>}{duplicateCandidates.map((candidate) => <div key={candidate.issue.id} className="mt-3 rounded-md border border-sidebar-border bg-sidebar-accent p-3"><p className="text-xs font-semibold text-cream">{candidate.issue.title}</p><p className="mt-1 text-[10px] text-cream/50">{candidate.issue.documentId} · {Math.round(candidate.similarity * 100)}% match · {candidate.band}</p><p className="mt-1 text-[10px] text-cream/45">Signals: {candidate.signals.join(' · ') || 'same PIN'}</p><div className="mt-2 flex gap-2"><button type="button" onClick={() => void decideDuplicate('merged', candidate.issue.id)} className="rounded bg-gold px-2 py-1 text-[10px] font-semibold text-charcoal">Link as duplicate</button><button type="button" onClick={() => void decideDuplicate('distinct', candidate.issue.id)} className="rounded border border-sidebar-border px-2 py-1 text-[10px] text-cream/70">Keep separate</button></div></div>)}{issue.duplicateOf && <button type="button" onClick={() => void decideDuplicate('unmerged')} className="mt-3 rounded border border-sidebar-border px-3 py-2 text-xs text-cream/70">Reverse merge</button>}{!duplicateCandidates.length && !issue.duplicateOf && !duplicateNotice && <p className="mt-2 text-xs text-cream/50">No same-PIN candidates above the suggestion threshold.</p>}</Section>}
 
         {canAct && <form onSubmit={saveAction} className="mt-5 space-y-3 rounded-lg border border-sidebar-border bg-sidebar-accent p-4">
           <p className="text-xs font-semibold uppercase tracking-wide text-gold">Administrative action</p>
           <label className="block text-xs text-cream/60">Status<select value={status} onChange={(event) => setStatus(event.target.value as IssueRecord['status'])} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream">
-            {['Filed', 'AI Classified', 'Assigned', 'Acknowledged', 'In Progress', 'Resolved', 'Community Verified', 'Closed', 'Under Review', 'Duplicate'].map((value) => <option key={value}>{value}</option>)}
+            {statusChoices.map((value) => <option key={value}>{value}</option>)}
           </select></label>
-          <label className="block text-xs text-cream/60">Department<input value={department} onChange={(event) => setDepartment(event.target.value)} maxLength={120} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /></label>
-          <label className="block text-xs text-cream/60">Assigned officer / office role<input value={officer} onChange={(event) => setOfficer(event.target.value)} maxLength={120} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /></label>
+          {canChangeDepartment && <label className="block text-xs text-cream/60">Route to department<input value={department} onChange={(event) => { setDepartment(event.target.value); setOfficer('') }} maxLength={120} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /><span className="mt-1 block text-[10px] text-cream/40">The route must match a configured department.</span></label>}
+          {canAssignOfficer && <label className="block text-xs text-cream/60">Assign a verified officer<select value={officer} onChange={(event) => setOfficer(event.target.value)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream"><option value="">{verifiedOfficers.length ? 'Leave assignment pending' : 'No verified officers in this department'}</option>{officer && !verifiedOfficers.some((record) => record.name === officer) && <option value={officer}>Current: {officer}</option>}{verifiedOfficers.map((record) => <option key={record.id} value={record.name}>{record.name} · {record.role}</option>)}</select><span className="mt-1 block text-[10px] text-cream/40">Only authority-verified staff for this PIN and department can be selected.</span></label>}
           <label className="block text-xs text-cream/60">Official update<textarea value={note} onChange={(event) => setNote(event.target.value)} maxLength={2000} rows={3} placeholder="Record an action, acknowledgement, or reason." className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /></label>
-          {status === 'Resolved' && <label className="block text-xs text-cream/60">Resolution evidence URL<input value={resolutionEvidence} onChange={(event) => setResolutionEvidence(event.target.value)} type="url" maxLength={500} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /></label>}
+          {status === 'Resolved' && <label className="block text-xs text-cream/60">Official resolution record URL<input value={resolutionEvidence} onChange={(event) => setResolutionEvidence(event.target.value)} type="url" required maxLength={500} placeholder="https://department.gov.in/..." className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-cream" /><span className="mt-1 block text-[10px] text-cream/40">Citizens can open this public HTTPS record. Use an official .gov.in or .nic.in source.</span></label>}
           {message && <p role="status" className="text-xs text-cream/70">{message}</p>}
           <button disabled={saving} className="w-full rounded-md bg-gold px-3 py-2 text-xs font-semibold text-charcoal disabled:opacity-50">{saving ? 'Saving…' : 'Save action'}</button>
         </form>}

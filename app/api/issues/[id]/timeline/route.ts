@@ -4,6 +4,18 @@ import { getIssueById } from '@/lib/issues'
 import { getFallbackAudit } from '@/lib/audit'
 import { redactPublicText } from '@/lib/privacy'
 
+function publicOfficialUrl(value: unknown) {
+  if (typeof value !== 'string') return undefined
+  try {
+    const url = new URL(value)
+    if (url.protocol !== 'https:' || url.username || url.password) return undefined
+    if (!['gov.in', 'nic.in'].some((domain) => url.hostname === domain || url.hostname.endsWith(`.${domain}`))) return undefined
+    return url.toString()
+  } catch {
+    return undefined
+  }
+}
+
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   try {
@@ -19,7 +31,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
           const oldStatus = before ?? event.details.old_status ?? event.details.from ?? null
           const newStatus = event.details.status ?? event.details.new_status ?? event.details.to ?? (event.action === 'issue.created' ? issue.status : null)
           const note = typeof event.details.note === 'string' ? event.details.note : event.action === 'issue.community_verified' ? 'A participating citizen confirmed the resolution.' : event.action === 'issue.reopened_by_citizen' ? 'A participating citizen reported that the issue remains unresolved.' : event.action.startsWith('duplicate.') ? 'A reviewer updated the duplicate decision.' : event.action === 'issue.created' ? 'Report filed.' : null
-          return { id: event.id, old_status: oldStatus, new_status: newStatus, note: note ? redactPublicText(note) : null, created_at: event.created_at }
+          const evidenceUrl = publicOfficialUrl(event.details.resolution_evidence_url)
+          return { id: event.id, old_status: oldStatus, new_status: newStatus, note: note ? redactPublicText(note) : null, evidence_url: evidenceUrl, created_at: event.created_at }
         })
         .filter((event) => event.new_status && event.old_status !== event.new_status)
         .sort((a, b) => Date.parse(a.created_at) - Date.parse(b.created_at))
@@ -27,7 +40,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     }
     const { data, error } = await client.from('public_issue_timeline').select('id,old_status,new_status,note,evidence_url,created_at').eq('issue_id', issue.id).order('created_at', { ascending: true })
     if (error) return NextResponse.json({ error: 'Unable to load issue history.' }, { status: 500 })
-    return NextResponse.json({ events: (data ?? []).map((event) => ({ ...event, note: event.note ? redactPublicText(event.note) : null, evidence_url: undefined })) })
+    return NextResponse.json({ events: (data ?? []).map((event) => ({ ...event, note: event.note ? redactPublicText(event.note) : null, evidence_url: publicOfficialUrl(event.evidence_url) })) })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to load issue history.' }, { status: 500 })
   }

@@ -6,7 +6,9 @@ import { consumeRateLimit } from '@/lib/rate-limit'
 
 export async function POST(request: Request) {
   try {
-    if (!(await consumeRateLimit(request, 'ai-analysis', 30, 60))) return NextResponse.json({ error: 'Too many analysis requests. Please wait a moment.' }, { status: 429 })
+    const rateLimit = await consumeRateLimit(request, 'ai-analysis', 30, 60)
+    if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
+    if (!rateLimit) return NextResponse.json({ error: 'Too many analysis requests. Please wait a moment.' }, { status: 429 })
     const body = await request.json()
     const text = String(body?.text ?? '').trim()
     const language = String(body?.language ?? 'Auto Detect')
@@ -22,7 +24,7 @@ export async function POST(request: Request) {
     const result = onlineConsent
       ? await analyzeComplaintWithGroq(text, language, { pin, locality, hasEvidence })
       : (await import('@/lib/ai')).analyzeComplaint(text, language, { pin, locality, hasEvidence })
-    const candidates = findDuplicateCandidates({ text, pin: result.pin, locality: result.locality, department: result.department, category: result.category }, await getIssues())
+    const candidates = findDuplicateCandidates({ text, pin: result.pin, locality: result.locality, department: result.department, category: result.category, hasEvidence }, await getIssues())
     const strong = candidates.find((candidate) => candidate.similarity >= 0.75)
     return NextResponse.json({
       ...result,

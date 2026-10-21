@@ -59,6 +59,10 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
     department: String(row.department ?? 'Municipal operations'),
     pin: String(row.pin ?? '000000'),
     locality: String(row.locality ?? 'Locality not provided'),
+    state: typeof row.state === 'string' ? row.state : undefined,
+    district: typeof row.district === 'string' ? row.district : undefined,
+    municipality: typeof row.municipality === 'string' ? row.municipality : undefined,
+    ward: typeof row.ward === 'string' ? row.ward : undefined,
     status: (row.status ?? 'Filed') as IssueStatus,
     priority: row.priority ?? 'Moderate',
     priorityScore: Number(row.priority_score ?? row.priorityScore ?? 0),
@@ -91,18 +95,24 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
     isDemo: Boolean(row.is_demo ?? row.isDemo),
     duplicateOf: row.duplicate_of ?? row.duplicateOf ?? undefined,
     duplicateDecision: row.duplicate_decision ?? row.duplicateDecision ?? undefined,
+    hasEvidence: Boolean(row.has_evidence ?? row.evidence_urls?.length ?? row.image_url),
   }
 }
 
-const PUBLIC_COLUMNS = 'id,document_id,title,description,normalized_text,category,department,pin,locality,status,priority,priority_score,priority_factors,trust_factors,ai_confidence,language,source_channel,model_version,trust,chai_heat,supporters,reports,comments,days_unresolved,officer,hub,sla_due_at,is_demo,duplicate_of,duplicate_decision,created_at,updated_at'
+const PUBLIC_COLUMNS = 'id,document_id,title,description,normalized_text,category,department,pin,locality,state,district,municipality,ward,status,priority,priority_score,priority_factors,trust_factors,ai_confidence,language,source_channel,model_version,trust,chai_heat,supporters,reports,comments,days_unresolved,officer,hub,sla_due_at,is_demo,duplicate_of,duplicate_decision,has_evidence,created_at,updated_at'
 
 export async function getIssues(client = getSupabaseClient(), includeRestricted = false): Promise<IssueRecord[]> {
   if (!client) {
     return [...getFallbackIssueStore()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }
-  const { data, error } = await client.from('issues').select(includeRestricted ? '*' : PUBLIC_COLUMNS).order('created_at', { ascending: false })
-  if (error) throw error
-  const rows = (data ?? []).map(normalizeIssue)
+  const rows: IssueRecord[] = []
+  const pageSize = 500
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await client.from('issues').select(includeRestricted ? '*' : PUBLIC_COLUMNS).order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
+    if (error) throw error
+    rows.push(...(data ?? []).map(normalizeIssue))
+    if (!data || data.length < pageSize) break
+  }
   return rows
 }
 
@@ -128,6 +138,7 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
   const createdAt = new Date().toISOString()
   let slaDueAt: string | null = null
   let jurisdictionId: string | null = null
+  let verifiedArea: { state?: string | null; district?: string | null; municipality?: string | null; ward?: string | null } = {}
   if (client && input.pin) {
     const { data: jurisdiction } = await client.from('jurisdictions').select('id').eq('pin', input.pin).limit(1).maybeSingle()
     if (jurisdiction) {
@@ -146,6 +157,15 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
         .sort((a, b) => Number(Boolean(b.category_id)) + Number(Boolean(b.department_id)) - Number(Boolean(a.category_id)) - Number(Boolean(a.department_id)))[0]
       if (target) slaDueAt = new Date(Date.now() + Number(target.target_hours) * 60 * 60 * 1000).toISOString()
     }
+    const { data: hubs } = await client.from('authority_hubs').select('state,district,municipality,ward,name,address').eq('pin', input.pin).eq('is_verified', true).limit(100)
+    if (hubs?.length) {
+      const locality = input.locality.trim().toLocaleLowerCase()
+      const matchesLocality = (hub: Record<string, any>) => [hub.name, hub.address, hub.ward].some((value) => typeof value === 'string' && Boolean(value.trim()) && (value.trim().toLocaleLowerCase() === locality || locality.includes(value.trim().toLocaleLowerCase()) || value.trim().toLocaleLowerCase().includes(locality)))
+      const matchingHubs = hubs.filter(matchesLocality)
+      const candidates = matchingHubs.length ? matchingHubs : hubs.length === 1 ? hubs : []
+      const areaSignatures = new Set(candidates.map((hub) => JSON.stringify([hub.state ?? null, hub.district ?? null, hub.municipality ?? null, hub.ward ?? null])))
+      if (areaSignatures.size === 1 && candidates.length) verifiedArea = candidates[0]
+    }
   }
   const documentId = `CC-${input.pin || '000000'}-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
   const payload = {
@@ -158,6 +178,10 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
     department: input.department,
     pin: input.pin,
     locality: input.locality,
+    state: verifiedArea.state ?? null,
+    district: verifiedArea.district ?? null,
+    municipality: verifiedArea.municipality ?? null,
+    ward: verifiedArea.ward ?? null,
     status: input.status ?? 'Filed',
     priority: priorityResult.priority,
     priority_score: priorityResult.score,
@@ -180,6 +204,7 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
     sla_due_at: slaDueAt,
     image_url: evidenceUrls[0] ?? null,
     evidence_urls: evidenceUrls,
+    has_evidence: evidenceUrls.length > 0,
     location_lat: input.location_lat ?? null,
     location_lng: input.location_lng ?? null,
     created_by: input.created_by ?? null,
@@ -245,18 +270,17 @@ export async function updateIssue(
     recordFallbackAudit(input.status ? 'issue.status_changed' : 'issue.assignment_changed', current.id, actorId, { before, status: current.status, department: current.department, officer: current.officer, note: input.note })
     return current
   }
-  const update: Record<string, unknown> = {}
-  if (input.status) update.status = input.status
-  if (input.department) update.department = input.department
-  if (input.officer) update.officer = input.officer
-  const { data, error } = await client.from('issues').update(update).eq('id', current.id).select(PUBLIC_COLUMNS).single()
+  const { error } = await client.rpc('apply_issue_action', {
+    p_issue_id: current.id,
+    p_actor_id: actorId ?? null,
+    p_status: input.status ?? null,
+    p_department: input.department ?? null,
+    p_officer: input.officer ?? null,
+    p_note: input.note ?? null,
+    p_resolution_evidence: input.resolutionEvidence ?? null,
+  })
   if (error) throw error
-  if (input.status && input.status !== current.status) {
-    await client.from('status_events').insert({ issue_id: current.id, old_status: current.status, new_status: input.status, actor_id: actorId ?? null, note: input.note ?? null, evidence_url: input.resolutionEvidence ?? null })
-  }
-  if (input.note) await client.from('issue_official_notes').insert({ issue_id: current.id, author_id: actorId ?? null, body: input.note })
-  await client.from('audit_logs').insert({ issue_id: current.id, actor_id: actorId ?? null, action: input.status ? 'issue.status_changed' : 'issue.assignment_changed', details: { from: current.status, to: input.status ?? current.status, department: input.department, officer: input.officer, note: input.note } })
-  return { ...current, ...normalizeIssue(data) }
+  return await getIssueById(current.id, client, true)
 }
 
 export async function addIssueSupport(id: string, userId?: string, client = getSupabaseClient()) {

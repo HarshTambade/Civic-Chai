@@ -68,3 +68,7 @@ export function canModerate(role: AppRole) {
 export function canAudit(role: AppRole) {
   return role === 'auditor' || role === 'authority_admin'
 }
+
+export function requiresMfa(role: AppRole) {
+  return role !== 'citizen'
+}

@@ -192,10 +192,10 @@ export function Composer({ onClose }: { onClose: () => void }) {
   function handleProofSelection(event: React.ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? [])
     if (!files.length) return
-    const maxSize = (file: File) => file.type.startsWith('video/') ? 15 * 1024 * 1024 : 4 * 1024 * 1024
-    const allowed = files.filter((file) => ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(file.type) && file.size <= maxSize(file))
+    const maxSize = () => 4 * 1024 * 1024
+    const allowed = files.filter((file) => ['image/jpeg', 'image/png', 'image/webp', 'video/mp4', 'video/webm'].includes(file.type) && file.size <= maxSize())
     if (allowed.length !== files.length || allowed.length + proofUrls.length > 3) {
-      setSubmissionError('Add up to three JPG/PNG/WebP images (4 MB each) or MP4/WebM videos (15 MB each).')
+      setSubmissionError('Add up to three JPG/PNG/WebP images or MP4/WebM videos (4 MB each).')
       if (event.target) event.target.value = ''
       return
     }
