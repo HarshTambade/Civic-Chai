@@ -43,20 +43,20 @@ export function LoginPage() {
   }
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-sidebar px-4 py-8 text-cream">
+    <main className="flex min-h-dvh items-center justify-center bg-sidebar px-4 py-8 text-sidebar-foreground">
       <div className="w-full max-w-2xl rounded-2xl border border-sidebar-border bg-sidebar-accent p-6 shadow-2xl sm:p-8">
         <div className="mb-7 flex items-center justify-center gap-3">
           <Logo showWordmark={false} />
           <div>
             <p className="font-display text-xl font-extrabold">CivicChai</p>
-            <p className="text-xs text-gold">Citizen and Authority Portals</p>
+            <p className="text-xs text-chai">Citizen and Authority Portals</p>
           </div>
         </div>
 
         <div className="grid gap-7 md:grid-cols-[0.9fr_1.1fr]">
           <section>
             <h1 className="font-display text-2xl font-extrabold">{creatingAccount ? 'Create a citizen account' : 'Sign in'}</h1>
-            <p className="mt-2 text-sm leading-relaxed text-cream/60">
+            <p className="mt-2 text-sm leading-relaxed text-sidebar-foreground/60">
               {creatingAccount
                 ? 'New accounts are created as citizens. Administrative roles are provisioned by an authorized administrator.'
                 : supabaseConfigured
@@ -64,19 +64,19 @@ export function LoginPage() {
                   : localDemoEnabled ? 'Local preview mode is active. Choose a demo role to sign in on this device.' : 'Authentication is unavailable. The production Supabase configuration is missing.'}
             </p>
             <form onSubmit={submit} className="mt-5 space-y-3">
-              {creatingAccount && <><label className="block text-xs font-semibold text-cream/70" htmlFor="display-name">Name</label><input id="display-name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" /></>}
-              <label className="block text-xs font-semibold text-cream/70" htmlFor="email">Email</label>
-              <input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" />
-              <label className="block pt-1 text-xs font-semibold text-cream/70" htmlFor="password">Password</label>
-              <input id="password" type="password" autoComplete={creatingAccount ? 'new-password' : 'current-password'} minLength={creatingAccount ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-cream outline-none focus:border-gold" />
+              {creatingAccount && <><label className="block text-xs font-semibold text-sidebar-foreground/70" htmlFor="display-name">Name</label><input id="display-name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-sidebar-foreground outline-none focus:border-gold" /></>}
+              <label className="block text-xs font-semibold text-sidebar-foreground/70" htmlFor="email">Email</label>
+              <input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-sidebar-foreground outline-none focus:border-gold" />
+              <label className="block pt-1 text-xs font-semibold text-sidebar-foreground/70" htmlFor="password">Password</label>
+              <input id="password" type="password" autoComplete={creatingAccount ? 'new-password' : 'current-password'} minLength={creatingAccount ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-2.5 text-sm text-sidebar-foreground outline-none focus:border-gold" />
               {error && <p role="alert" className="rounded-lg bg-heat/15 p-3 text-sm text-heat">{error}</p>}
               {notice && <p role="status" className="rounded-lg bg-leaf/10 p-3 text-sm text-leaf">{notice}</p>}
               <button disabled={isLoading || (!supabaseConfigured && !localDemoEnabled)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-60">
                 {isLoading ? creatingAccount ? 'Creating account…' : 'Signing in…' : creatingAccount ? 'Create account' : 'Continue'} <ArrowRight className="h-4 w-4" />
               </button>
             </form>
-            {canRegister && <button type="button" onClick={() => { setCreatingAccount((current) => !current); setError(''); setNotice('') }} className="mt-3 text-xs font-semibold text-gold underline">{creatingAccount ? 'Already have an account? Sign in' : 'Create a citizen account'}</button>}
-            <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-cream/50">
+            {canRegister && <button type="button" onClick={() => { setCreatingAccount((current) => !current); setError(''); setNotice('') }} className="mt-3 text-xs font-semibold text-chai underline">{creatingAccount ? 'Already have an account? Sign in' : 'Create a citizen account'}</button>}
+            <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-sidebar-foreground/50">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-leaf" />
               {supabaseConfigured
                 ? 'Role access is read from each account’s Supabase profile. Local demo sessions are disabled while Supabase is connected.'
@@ -85,10 +85,10 @@ export function LoginPage() {
           </section>
 
           {localDemoEnabled || supabaseConfigured ? <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wider text-gold">Demo accounts · password: CivicChai!2026</h2>
-            <p className="mt-1 text-[11px] leading-relaxed text-cream/45">
+            <h2 className="text-xs font-semibold uppercase tracking-wider text-chai">Demo accounts · password: CivicChai!2026</h2>
+            <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/45">
               {supabaseConfigured
-                ? <>Connected mode: if a demo is missing, run <code className="text-cream/65">pnpm run seed:demo-users</code> with this project’s server credentials.</>
+                ? <>Connected mode: if a demo is missing, run <code className="text-sidebar-foreground/65">pnpm run seed:demo-users</code> with this project’s server credentials.</>
                 : 'Preview sessions are stored only in this browser.'}
             </p>
             <div className="mt-3 space-y-2">
@@ -100,10 +100,10 @@ export function LoginPage() {
                   className="flex w-full items-center justify-between gap-3 rounded-lg border border-sidebar-border px-3 py-2 text-left transition hover:border-gold/70 hover:bg-sidebar-accent"
                 >
                   <span>
-                    <span className="block text-xs font-semibold text-cream">{ROLE_LABELS[account.role]}</span>
-                    <span className="mt-0.5 block text-[11px] text-cream/50">{account.email}</span>
+                    <span className="block text-xs font-semibold text-sidebar-foreground">{ROLE_LABELS[account.role]}</span>
+                    <span className="mt-0.5 block text-[11px] text-sidebar-foreground/50">{account.email}</span>
                   </span>
-                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-cream/40" />
+                  <ArrowRight className="h-3.5 w-3.5 shrink-0 text-sidebar-foreground/40" />
                 </button>
               ))}
             </div>

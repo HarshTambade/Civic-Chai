@@ -130,16 +130,16 @@ export function ControlRoom() {
   }
 
   return (
-    <div className="flex min-h-screen bg-sidebar font-sans text-cream">
+    <div className="flex min-h-screen bg-sidebar font-sans text-sidebar-foreground">
       {/* Sidebar */}
-      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-charcoal p-4 lg:flex">
+      <aside className="hidden w-64 shrink-0 flex-col border-r border-sidebar-border bg-card p-4 lg:flex">
         <div className="flex items-center gap-2.5 px-2 py-2">
           <Logo showWordmark={false} className="shrink-0" />
           <div>
-            <p className="font-display text-sm font-extrabold leading-tight text-cream">
+            <p className="font-display text-sm font-extrabold leading-tight text-sidebar-foreground">
               CivicChai
             </p>
-            <p className="text-[11px] text-gold">Control Room</p>
+            <p className="text-[11px] text-chai">Control Room</p>
           </div>
         </div>
 
@@ -152,7 +152,7 @@ export function ControlRoom() {
                 'flex items-center gap-3 rounded-md px-3 py-2.5 text-sm font-medium transition-colors',
                 tab === n.id
                   ? 'bg-gold text-charcoal'
-                  : 'text-cream/70 hover:bg-sidebar-accent hover:text-cream',
+                  : 'text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground',
               )}
             >
               <n.icon className="h-4 w-4" />
@@ -163,22 +163,22 @@ export function ControlRoom() {
 
         <div className="mt-auto space-y-3">
           <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-3">
-            <p className="flex items-center gap-2 text-xs font-semibold text-cream">
+            <p className="flex items-center gap-2 text-xs font-semibold text-sidebar-foreground">
               <ShieldCheck className="h-4 w-4 text-leaf" /> RBAC active
             </p>
-            <p className="mt-1 text-[11px] leading-relaxed text-cream/50">
+            <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/50">
               {user ? `${ROLE_LABELS[user.role]} · ${user.pin ? `PIN ${user.pin}` : 'jurisdiction scoped'}. Actions are recorded.` : 'Sign in required.'}
             </p>
           </div>
           <Link
             href="/"
-            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-cream/60 hover:text-cream"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground"
           >
             <ArrowLeft className="h-3.5 w-3.5" /> Back to site
           </Link>
           <button
             onClick={handleLogout}
-            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-cream/60 hover:text-cream hover:bg-sidebar-accent/50 transition-colors"
+            className="flex w-full items-center gap-2 rounded-md px-3 py-2 text-xs text-sidebar-foreground/60 hover:text-sidebar-foreground hover:bg-sidebar-accent/50 transition-colors"
           >
             <LogOut className="h-3.5 w-3.5" /> Sign Out
           </button>
@@ -187,40 +187,40 @@ export function ControlRoom() {
 
       {/* Main */}
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-charcoal/90 px-5 py-3.5 backdrop-blur">
+        <header className="sticky top-0 z-30 flex items-center justify-between border-b border-sidebar-border bg-card/90 px-5 py-3.5 backdrop-blur">
           <div>
-            <h1 className="font-display text-lg font-extrabold text-cream">
+            <h1 className="font-display text-lg font-extrabold text-sidebar-foreground">
               {head.title}
             </h1>
-            <p className="text-xs text-cream/50">{head.sub}</p>
+            <p className="text-xs text-sidebar-foreground/50">{head.sub}</p>
           </div>
           <div className="flex items-center gap-3">
             <div className="relative">
             <button
               onClick={() => setNotificationsOpen((open) => !open)}
-              className="relative rounded-md border border-sidebar-border p-2 text-cream/70 hover:text-cream"
+              className="relative rounded-md border border-sidebar-border p-2 text-sidebar-foreground/70 hover:text-sidebar-foreground"
               aria-label="Notifications"
               aria-expanded={notificationsOpen}
             >
               <Bell className="h-4 w-4" />
               {notifications.some((item) => !item.read_at) && <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-heat text-[10px] font-bold text-cream">{notifications.filter((item) => !item.read_at).length}</span>}
             </button>
-            {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-sidebar-border bg-sidebar p-3 shadow-2xl"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-cream">Notifications</p>{notifications.some((item) => !item.read_at) && <button onClick={() => void markAllNotificationsRead()} className="inline-flex items-center gap-1 text-[11px] font-semibold text-gold"><Check className="h-3.5 w-3.5" />Mark read</button>}</div><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{notifications.length ? notifications.map((item) => <article key={item.id} className={'rounded-lg p-3 ' + (item.read_at ? 'bg-sidebar-accent' : 'bg-gold/10')}><p className="text-xs font-semibold text-cream">{item.title}</p><p className="mt-1 text-[11px] leading-relaxed text-cream/60">{item.body}</p>{item.issue_id && <button onClick={() => { setTab('complaints'); setNotificationsOpen(false) }} className="mt-1 text-[10px] font-semibold text-gold underline">Open issue queue</button>}<p className="mt-1 text-[10px] text-cream/40">{new Date(item.created_at).toLocaleString()}</p></article>) : <p className="py-3 text-xs text-cream/50">No notifications yet.</p>}</div></div>}
+            {notificationsOpen && <div className="absolute right-0 top-12 z-50 w-[min(24rem,calc(100vw-2rem))] rounded-xl border border-sidebar-border bg-sidebar p-3 shadow-2xl"><div className="flex items-center justify-between gap-2"><p className="text-sm font-semibold text-sidebar-foreground">Notifications</p>{notifications.some((item) => !item.read_at) && <button onClick={() => void markAllNotificationsRead()} className="inline-flex items-center gap-1 text-[11px] font-semibold text-chai"><Check className="h-3.5 w-3.5" />Mark read</button>}</div><div className="mt-3 max-h-80 space-y-2 overflow-y-auto">{notifications.length ? notifications.map((item) => <article key={item.id} className={'rounded-lg p-3 ' + (item.read_at ? 'bg-sidebar-accent' : 'bg-gold/10')}><p className="text-xs font-semibold text-sidebar-foreground">{item.title}</p><p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/60">{item.body}</p>{item.issue_id && <button onClick={() => { setTab('complaints'); setNotificationsOpen(false) }} className="mt-1 text-[10px] font-semibold text-chai underline">Open issue queue</button>}<p className="mt-1 text-[10px] text-sidebar-foreground/40">{new Date(item.created_at).toLocaleString()}</p></article>) : <p className="py-3 text-xs text-sidebar-foreground/50">No notifications yet.</p>}</div></div>}
             </div>
             <div className="flex items-center gap-2 rounded-md border border-sidebar-border px-3 py-1.5">
               <span className="flex h-7 w-7 items-center justify-center rounded-full bg-gold text-xs font-bold text-charcoal">
                 {(user?.name ?? 'CC').split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
               </span>
               <div className="hidden sm:block">
-                <p className="text-xs font-semibold text-cream">{user?.name}</p>
-                <p className="text-[10px] text-cream/50">{user ? ROLE_LABELS[user.role] : ''}</p>
+                <p className="text-xs font-semibold text-sidebar-foreground">{user?.name}</p>
+                <p className="text-[10px] text-sidebar-foreground/50">{user ? ROLE_LABELS[user.role] : ''}</p>
               </div>
             </div>
           </div>
         </header>
 
         {/* Mobile tabs */}
-        <div className="flex gap-1 overflow-x-auto border-b border-sidebar-border bg-charcoal px-3 py-2 lg:hidden">
+        <div className="flex gap-1 overflow-x-auto border-b border-sidebar-border bg-card px-3 py-2 lg:hidden">
           {visibleNav.map((n) => (
             <button
               key={n.id}
@@ -229,7 +229,7 @@ export function ControlRoom() {
                 'flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium',
                 tab === n.id
                   ? 'bg-gold text-charcoal'
-                  : 'text-cream/70',
+                  : 'text-sidebar-foreground/70',
               )}
             >
               <n.icon className="h-3.5 w-3.5" />

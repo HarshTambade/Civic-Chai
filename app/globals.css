@@ -2,8 +2,6 @@
 @import 'tw-animate-css';
 @import 'shadcn/tailwind.css';
 
-@custom-variant dark (&:is(.dark *));
-
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -112,15 +110,15 @@
   --chart-4: #6b3f24;
   --chart-5: #c84630;
 
-  /* Government control room = cool, dense, professional dark-ink surface */
-  --sidebar: #211d1a;
-  --sidebar-foreground: #e8d3b0;
-  --sidebar-primary: #d99a3d;
-  --sidebar-primary-foreground: #25211e;
-  --sidebar-accent: #2f2925;
-  --sidebar-accent-foreground: #fff8ec;
-  --sidebar-border: #3a332d;
-  --sidebar-ring: #d99a3d;
+  /* The authority workspace uses the same warm light palette as the citizen app. */
+  --sidebar: #f2e8d4;
+  --sidebar-foreground: #25211e;
+  --sidebar-primary: #6b3f24;
+  --sidebar-primary-foreground: #fff8ec;
+  --sidebar-accent: #fffdf7;
+  --sidebar-accent-foreground: #25211e;
+  --sidebar-border: #e4d4b6;
+  --sidebar-ring: #b85c38;
 }
 
 @layer base {

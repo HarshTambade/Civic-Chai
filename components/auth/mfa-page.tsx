@@ -94,20 +94,20 @@ export function MfaPage() {
   const qrSource = qrCode.startsWith('data:') ? qrCode : `data:image/svg+xml;utf8,${encodeURIComponent(qrCode)}`
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-sidebar px-4 py-8 text-cream">
+    <main className="flex min-h-dvh items-center justify-center bg-sidebar px-4 py-8 text-sidebar-foreground">
       <section className="w-full max-w-md rounded-2xl border border-sidebar-border bg-sidebar-accent p-6 shadow-2xl sm:p-8">
-        <div className="mb-5 flex items-center gap-3"><Logo showWordmark={false} /><div><p className="font-display text-xl font-extrabold">Staff account protection</p><p className="text-xs text-gold">Multi-factor authentication</p></div></div>
-        <p className="text-sm leading-relaxed text-cream/65">Administrative access requires a time-based one-time code from an authenticator app. CivicChai checks this requirement on protected API requests as well as in the dashboard.</p>
-        {loading ? <p role="status" className="mt-5 text-sm text-cream/60">Preparing your secure sign-in…</p> : <>
+        <div className="mb-5 flex items-center gap-3"><Logo showWordmark={false} /><div><p className="font-display text-xl font-extrabold">Staff account protection</p><p className="text-xs text-chai">Multi-factor authentication</p></div></div>
+        <p className="text-sm leading-relaxed text-sidebar-foreground/65">Administrative access requires a time-based one-time code from an authenticator app. CivicChai checks this requirement on protected API requests as well as in the dashboard.</p>
+        {loading ? <p role="status" className="mt-5 text-sm text-sidebar-foreground/60">Preparing your secure sign-in…</p> : <>
           {qrCode && <div className="mt-5 rounded-xl bg-white p-4 text-center"><img src={qrSource} alt="Scan this one-time code with your authenticator app" className="mx-auto h-48 w-48" /><p className="mt-2 text-xs text-charcoal/65">Scan this QR code in your authenticator app.</p><p className="mt-2 break-all font-mono text-xs text-charcoal">{secret}</p></div>}
           {error && <p role="alert" className="mt-4 rounded-lg bg-heat/15 p-3 text-sm text-heat">{error}</p>}
           {factorId && challengeId && <form onSubmit={verify} className="mt-5 space-y-3">
-            <label htmlFor="mfa-code" className="block text-xs font-semibold text-cream/75">Authenticator code</label>
-            <input id="mfa-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-3 text-center font-mono text-xl tracking-[0.4em] text-cream outline-none focus:border-gold" />
+            <label htmlFor="mfa-code" className="block text-xs font-semibold text-sidebar-foreground/75">Authenticator code</label>
+            <input id="mfa-code" value={code} onChange={(event) => setCode(event.target.value.replace(/\D/g, '').slice(0, 6))} autoComplete="one-time-code" inputMode="numeric" pattern="[0-9]{6}" minLength={6} maxLength={6} required className="w-full rounded-lg border border-sidebar-border bg-sidebar px-3 py-3 text-center font-mono text-xl tracking-[0.4em] text-sidebar-foreground outline-none focus:border-gold" />
             <button disabled={submitting} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-3 text-sm font-semibold text-charcoal disabled:opacity-60"><ShieldCheck className="h-4 w-4" />{submitting ? 'Verifying…' : qrCode ? 'Verify and enable MFA' : 'Verify and continue'}</button>
           </form>}
         </>}
-        <button type="button" onClick={() => void logout().then(() => router.replace('/login'))} className="mt-5 w-full rounded-lg border border-sidebar-border px-4 py-2.5 text-xs font-semibold text-cream/60">Sign out</button>
+        <button type="button" onClick={() => void logout().then(() => router.replace('/login'))} className="mt-5 w-full rounded-lg border border-sidebar-border px-4 py-2.5 text-xs font-semibold text-sidebar-foreground/60">Sign out</button>
       </section>
     </main>
   )
