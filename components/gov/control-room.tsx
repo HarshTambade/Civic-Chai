@@ -6,7 +6,7 @@ import Link from 'next/link'
 import { Logo } from '@/components/brand/logo'
 import { useAuth } from '@/components/auth-provider'
 import { civicFetch } from '@/lib/client-api'
-import { ROLE_LABELS, canAudit, canManageIssues, canManageRegistry, canModerate } from '@/lib/roles'
+import { ROLE_LABELS, canManageIssues, canManageRegistry, canModerate, type AppRole } from '@/lib/roles'
 import {
   OverviewView,
   ComplaintsView,
@@ -17,6 +17,7 @@ import {
   ModerationView,
   PrivacyRequestsView,
 } from '@/components/gov/control-room-views'
+import { RoleDashboard, SystemHealthView, type DashboardDestination } from '@/components/gov/role-dashboard'
 import {
   LayoutDashboard,
   ListChecks,
@@ -29,10 +30,11 @@ import {
   LogOut,
 } from 'lucide-react'
 
-type Tab = 'overview' | 'complaints' | 'gis' | 'analytics' | 'registry' | 'audit' | 'moderation' | 'privacy'
+type Tab = 'home' | 'overview' | 'complaints' | 'gis' | 'analytics' | 'registry' | 'audit' | 'moderation' | 'privacy' | 'system'
 
 const ALL_NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
-  { id: 'overview', label: 'Overview', icon: LayoutDashboard },
+  { id: 'home', label: 'My dashboard', icon: LayoutDashboard },
+  { id: 'overview', label: 'Executive overview', icon: LayoutDashboard },
   { id: 'complaints', label: 'Complaints', icon: ListChecks },
   { id: 'gis', label: 'Chai Heat Map', icon: Map },
   { id: 'analytics', label: 'Analytics', icon: ChartColumn },
@@ -40,9 +42,11 @@ const ALL_NAV: { id: Tab; label: string; icon: typeof LayoutDashboard }[] = [
   { id: 'audit', label: 'Audit', icon: Bell },
   { id: 'moderation', label: 'Moderation', icon: Bell },
   { id: 'privacy', label: 'Privacy requests', icon: ShieldCheck },
+  { id: 'system', label: 'Platform status', icon: ShieldCheck },
 ]
 
 const TITLES: Record<Tab, { title: string; sub: string }> = {
+  home: { title: 'My dashboard', sub: 'A workspace tailored to your CivicChai role' },
   overview: { title: 'Control Room', sub: 'Live civic operations across the ward' },
   complaints: { title: 'Complaints', sub: 'Normalized, prioritized, de-duplicated' },
   gis: { title: 'Chai Heat Map', sub: 'Privacy-preserving geographic hotspots' },
@@ -51,14 +55,37 @@ const TITLES: Record<Tab, { title: string; sub: string }> = {
   audit: { title: 'Audit & Compliance', sub: 'Status history, access logs and governance trail' },
   moderation: { title: 'Moderation', sub: 'User reports, content review and appeals' },
   privacy: { title: 'Privacy requests', sub: 'Data-rights and privacy grievance handling' },
+  system: { title: 'Platform status', sub: 'Safe infrastructure checks and operational readiness' },
+}
+
+const ROLE_HOME: Record<AppRole, Tab> = {
+  citizen: 'home',
+  moderator: 'home',
+  department_operator: 'home',
+  department_supervisor: 'home',
+  authority_admin: 'home',
+  system_admin: 'home',
+  auditor: 'home',
+}
+
+const ROLE_HEADER: Partial<Record<AppRole, { title: string; sub: string }>> = {
+  moderator: { title: 'Community safety', sub: 'Moderation, review and appeals' },
+  department_operator: { title: 'Department operations', sub: 'Your assigned cases and service actions' },
+  department_supervisor: { title: 'Department performance', sub: 'Workload, service targets and escalations' },
+  authority_admin: { title: 'Jurisdiction operations', sub: 'Cross-department ward coordination' },
+  system_admin: { title: 'Platform operations', sub: 'Infrastructure status and data-rights workflow' },
+  auditor: { title: 'Independent oversight', sub: 'Read-only audit and compliance records' },
 }
 
 export function ControlRoom() {
-  const [tab, setTab] = useState<Tab>('overview')
   const { logout, user } = useAuth()
+  const [tab, setTab] = useState<Tab>(() => ROLE_HOME[user?.role ?? 'authority_admin'])
   const [notifications, setNotifications] = useState<Array<{ id: string; title: string; body: string; issue_id: string | null; read_at: string | null; created_at: string }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
-  const head = TITLES[tab]
+  const roleHeader = user?.role ? ROLE_HEADER[user.role] : undefined
+  const head = roleHeader && tab === ROLE_HOME[user?.role ?? 'authority_admin']
+    ? roleHeader
+    : TITLES[tab]
   useEffect(() => {
     let cancelled = false
     civicFetch('/api/notifications').then((response) => response.ok ? response.json() : null).then((payload) => {
@@ -75,16 +102,22 @@ export function ControlRoom() {
   const visibleNav = ALL_NAV.filter((item) => {
     const role = user?.role
     if (!role) return false
+    if (role === 'moderator') return item.id === 'home' || item.id === 'moderation'
+    if (role === 'department_operator') return item.id === 'home' || item.id === 'complaints'
+    if (role === 'department_supervisor') return item.id === 'home' || item.id === 'complaints' || item.id === 'analytics'
+    if (role === 'system_admin') return item.id === 'home' || item.id === 'system' || item.id === 'privacy'
+    if (role === 'auditor') return item.id === 'home' || item.id === 'audit'
     if (item.id === 'registry') return canManageRegistry(role)
-    if (item.id === 'audit') return canAudit(role)
+    if (item.id === 'audit') return role === 'authority_admin'
     if (item.id === 'moderation') return canModerate(role)
-    if (item.id === 'privacy') return role === 'system_admin'
-    if (item.id === 'overview') return role === 'system_admin' || canManageIssues(role) || canAudit(role) || canModerate(role)
-    if (item.id === 'complaints') return role !== 'citizen'
-    if (item.id === 'gis' || item.id === 'analytics') return canManageIssues(role) || canAudit(role)
-    return canManageIssues(role) || canAudit(role) || canModerate(role)
+    if (item.id === 'home') return true
+    if (item.id === 'overview' || item.id === 'complaints' || item.id === 'gis' || item.id === 'analytics') return canManageIssues(role)
+    return false
   })
-  const safeTab = visibleNav.some((item) => item.id === tab) ? tab : visibleNav[0]?.id ?? 'overview'
+  useEffect(() => {
+    if (user?.role) setTab(ROLE_HOME[user.role])
+  }, [user?.role])
+  const safeTab = visibleNav.some((item) => item.id === tab) ? tab : visibleNav[0]?.id ?? 'home'
 
   const handleLogout = () => {
     logout()
@@ -200,6 +233,7 @@ export function ControlRoom() {
         </div>
 
         <main className="flex-1 overflow-x-hidden p-5">
+          {safeTab === 'home' && user && user.role !== 'citizen' && <RoleDashboard role={user.role} onNavigate={(destination: DashboardDestination) => setTab(destination)} />}
           {safeTab === 'overview' && <OverviewView />}
           {safeTab === 'complaints' && <ComplaintsView />}
           {safeTab === 'gis' && <GISView />}
@@ -208,6 +242,7 @@ export function ControlRoom() {
           {safeTab === 'audit' && <AuditView />}
           {safeTab === 'moderation' && <ModerationView />}
           {safeTab === 'privacy' && <PrivacyRequestsView />}
+          {safeTab === 'system' && <SystemHealthView />}
         </main>
       </div>
     </div>
