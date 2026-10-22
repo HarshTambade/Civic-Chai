@@ -1,2096 +1,747 @@
-# ☕ CivicChai — Detailed Project README
+# CivicChai
 
-> **India mein har ek Charcha Chai Pe hoti hai.**
+> **Charcha se Chai. Chai se Change.**
 >
-> **CivicChai turns every civic grievance into a community-powered Charcha, where AI understands the problem, citizens decide how hot the Chai is, and authorities get a structured, prioritized and trackable civic issue.**
+> CivicChai is a civic issue reporting and response prototype. It gives residents a shared place to report local problems, see related reports, follow progress, and gives scoped authority staff a workflow for reviewing and acting on those issues.
 
-## Run the included application
+CivicChai uses the familiar idea of a **chai tapri** as a product metaphor: a local issue becomes a *Charcha* (discussion), community participation contributes *Chai Heat*, and authorities can track an issue through a documented workflow. It is designed as a web app and installable PWA, with browser voice assistance and an optional phone IVR integration.
 
-The runnable Next.js app, PWA, API routes and Supabase setup are in this repository. Copy .env.example to .env.local; for a local UI demo, leave Supabase settings blank and sign in with any role account in the login screen. The local demo uses browser storage and is not durable authentication.
+> **Project status:** prototype for controlled pilot evaluation. External authority setup and operational review are required before accepting real public submissions. CivicChai is not automatically a statutory grievance, appeal, or emergency channel.
 
-For a connected deployment, apply supabase/migrations/001_init.sql, supabase/migrations/002_civicchai_platform.sql and supabase/migrations/003_pilot_hardening.sql in order, then supabase/seed.sql. Set the Supabase values in .env.local, run `pnpm run seed:demo-users`, then `pnpm dev`. The role demo accounts and their shared password are documented in the Supabase setup guide. Staff demo accounts require one-time TOTP MFA enrollment in connected mode.
+## Contents
 
-The registry starts empty because the SOP prohibits invented public contacts, legal references and SLAs. Sign in as the authority administrator, create the jurisdiction, and add source-backed hub, office, document and optional service-target records before presenting them as verified.
+- [At a glance](#at-a-glance)
+- [Project mind map](#project-mind-map)
+- [What the application does](#what-the-application-does)
+- [Important prototype boundaries](#important-prototype-boundaries)
+- [User journeys](#user-journeys)
+- [Roles and access](#roles-and-access)
+- [Architecture](#architecture)
+- [AI, duplicate handling, and scoring](#ai-duplicate-handling-and-scoring)
+- [Privacy and security](#privacy-and-security)
+- [Offline and PWA behavior](#offline-and-pwa-behavior)
+- [Technology](#technology)
+- [Quick start](#quick-start)
+- [Supabase setup](#supabase-setup)
+- [Environment variables](#environment-variables)
+- [Application routes](#application-routes)
+- [API reference](#api-reference)
+- [Data model](#data-model)
+- [Repository map](#repository-map)
+- [Pilot and production checklist](#pilot-and-production-checklist)
+- [SOP coverage](#sop-coverage)
+- [Demo walkthrough](#demo-walkthrough)
+- [Testing and validation](#testing-and-validation)
+- [Troubleshooting](#troubleshooting)
+- [Contribution and change guidelines](#contribution-and-change-guidelines)
+- [Development notes](#development-notes)
+- [Related documentation](#related-documentation)
 
-See [Pilot readiness](docs/PILOT_READINESS.md) for the SOP coverage audit and the external setup and acceptance steps required before real submissions.
+## At a glance
 
----
+| Area | Current implementation |
+| --- | --- |
+| Citizen experience | Issue discovery, filing, comments, support, follow, personal issue tracking, profile and data-rights request entry points |
+| Authority experience | Role-specific control room for issue operations, moderation, registry management, audit review, privacy requests, and system readiness |
+| Authentication | Supabase Auth in connected mode; browser-only role simulation when running locally without Supabase |
+| Staff protection | Every non-citizen role requires Supabase TOTP MFA in connected mode |
+| Issue storage | Supabase Postgres with row-level security and server-side service-role workflows; local preview uses temporary in-process stores and browser storage |
+| AI | Deterministic rules-based baseline; optional Groq classification only after the citizen opts in to online processing |
+| Duplicate candidates | Same-PIN lexical and heuristic matching; suggestions are reviewed by a person, not automatically merged |
+| Mapping | Leaflet heatmap with aggregated or approximate geography; exact coordinates are restricted to authorized workflows |
+| Phone reporting | Twilio-compatible speech/DTMF IVR route, requiring a configured provider number and callback URL |
+| Offline support | Installable app shell, cached public reads, and consent-based local report drafts; drafts require a later authenticated sync |
 
-# 📌 Table of Contents
+## Project mind map
 
-1. [Overview](#-overview)
-2. [Problem Statement](#-problem-statement)
-3. [Our Solution](#-our-solution)
-4. [Why CivicChai?](#-why-civicchai)
-5. [Core Philosophy](#-core-philosophy)
-6. [Product Architecture](#-product-architecture)
-7. [Two-Portal Architecture](#-two-portal-architecture)
-8. [Citizen Portal](#-citizen-portal)
-9. [Government Administration Dashboard](#-government-administration-dashboard)
-10. [Chai Tapri Social Layer](#-chai-tapri-social-layer)
-11. [Complaint Filing](#-complaint-filing)
-12. [Multilingual Voice AI](#-multilingual-voice-ai)
-13. [Keypad Phone Support](#-keypad-phone-support)
-14. [AI Complaint Classification](#-ai-complaint-classification)
-15. [Duplicate Complaint Detection](#-duplicate-complaint-detection)
-16. [Chai Heat](#-chai-heat)
-17. [Priority Engine](#-priority-engine)
-18. [Trust / Evidence Score](#-trust--evidence-score)
-19. [Civic Report Generation](#-civic-report-generation)
-20. [Civic Education Engine](#-civic-education-engine)
-21. [Department & Officer Routing](#-department--officer-routing)
-22. [PIN-Code Hub System](#-pin-code-hub-system)
-23. [Complaint Tracking](#-complaint-tracking)
-24. [GIS & Civic Hotspots](#-gis--civic-hotspots)
-25. [WebLLM & Hybrid AI](#-webllm--hybrid-ai)
-26. [Offline Architecture](#-offline-architecture)
-27. [System Architecture](#-system-architecture)
-28. [Data Architecture](#-data-architecture)
-29. [Security](#-security)
-30. [Privacy](#-privacy)
-31. [Compliance](#-compliance)
-32. [AI Governance](#-ai-governance)
-33. [Anti-Spam & Anti-Manipulation](#-anti-spam--anti-manipulation)
-34. [Accessibility](#-accessibility)
-35. [Technology Stack](#-technology-stack)
-36. [API Architecture](#-api-architecture)
-37. [Example End-to-End Flow](#-example-end-to-end-flow)
-38. [Dashboard Metrics](#-dashboard-metrics)
-39. [Database Schema](#-database-schema)
-40. [Project Structure](#-project-structure)
-41. [MVP](#-mvp)
-42. [Future Roadmap](#-future-roadmap)
-43. [Testing](#-testing)
-44. [KPIs](#-kpis)
-45. [Deployment](#-deployment)
-46. [Contribution Guidelines](#-contribution-guidelines)
-47. [Legal Disclaimer](#-legal-disclaimer)
-48. [Vision](#-vision)
+```mermaid
+mindmap
+  root((CivicChai))
+    Citizen portal
+      Local Chai feed
+      Chai Tapri discovery
+      File a civic issue
+        Text
+        Browser speech assistance
+        Photo or video evidence
+        Phone IVR integration
+      Participate
+        Support
+        Follow
+        Comment
+        Report content
+      Track
+        Status timeline
+        Notifications
+        Community verification
+      Profile and data rights
+    Authority control room
+      Moderation
+      Department operations
+      Department supervision
+      Jurisdiction administration
+        Verified registry
+        Hubs and contacts
+        Documents and service targets
+      System administration
+      Audit review
+      GIS and analytics
+    Issue processing
+      Classification
+        Local rules baseline
+        Optional consented Groq request
+      Duplicate suggestions
+        Same PIN
+        Wording similarity
+        Category and locality signals
+        Human review
+      Separate signals
+        Chai Heat
+        Priority
+        Evidence trust
+      Routing and status
+      Resolution and citizen verification
+    Platform
+      Next.js App Router
+      TypeScript and React
+      Supabase Auth and Postgres
+      Row-level security
+      Private evidence storage
+      PWA and offline drafts
+      Rate limits and audit trail
+    Pilot requirements
+      Authority-approved jurisdiction
+      Verified contacts and source documents
+      Privacy and retention policy
+      Moderation and escalation owners
+      Telephony and upload scanning
+      Backups monitoring and security review
+```
 
----
+## What the application does
 
-# ☕ Overview
+### Citizen portal
 
-**CivicChai** is an AI-powered civic grievance and social participation platform designed to make reporting civic problems as easy and familiar as having a conversation at an Indian chai tapri.
+The citizen experience is organized around local discovery and issue follow-up:
 
-Instead of treating a grievance as a boring government ticket, CivicChai transforms it into a **community-driven civic discussion**.
+- **Local Chai** shows issues for a selected PIN/locality.
+- **Chai Tapri** helps people browse trending and nearby issues.
+- **Pour a Chai** opens the issue composer. The citizen supplies a title, description, PIN, locality, category/routing suggestions, and optional evidence.
+- **My Charcha** collects issues a person filed, supported, or follows, plus offline drafts awaiting synchronization.
+- **Issue detail** displays a public-safe issue summary, discussion, status timeline, and available participation actions.
+- **Profile** stores preferences such as locality, preferred PIN, language, notification preferences, and consent settings.
+- **Data rights** lets a signed-in person submit an access, correction, erasure, or grievance request. A system administrator records the human review outcome; the application does not automatically export or erase records.
 
-A citizen can:
+The app's public issue representation redacts common phone numbers, email addresses, long identity numbers, and house-number patterns. It removes original text, reporter identity, evidence links, and precise coordinates from public responses. Redaction is a safeguard, not a guarantee that a free-text description contains no identifying information.
 
-* Type a complaint
-* Speak a complaint
-* Upload photographs/videos
-* Provide supporting documents
-* Use a smartphone
-* Use a web browser
-* Call CivicChai from a keypad phone
-* View existing local issues
-* Upvote existing complaints
-* Comment and add evidence
-* Track complaints
-* Understand which department handles the issue
-* Find the responsible office/hub
-* Learn about the relevant public process
-* View the complete complaint report
+### Authority control room
 
-At the same time, government administrators receive a structured dashboard where complaints are:
+The control room presents different work areas according to the signed-in role:
 
-* Classified
-* Categorized
-* Geographically grouped
-* Deduplicated
-* Prioritized
-* Routed
-* Tracked
-* Analysed
+- **Moderator:** review reported content, document a decision, and handle appeals.
+- **Department operator:** work issues in the assigned department and PIN scope, update workflow status, and add operational notes or resolution evidence.
+- **Department supervisor:** oversee a department's queue, assignment, targets, and escalation workflow.
+- **Authority administrator:** administer the assigned jurisdiction, verified public registry, cross-department operations, and moderation/audit workflows.
+- **System administrator:** view deployment readiness and review data-rights requests. This role is intentionally kept separate from civic case content.
+- **Auditor:** read the audit trail for the authorized scope.
 
----
+The API and database enforce role and scope checks. Hiding a screen in the UI is not the authorization boundary.
 
-# 🎯 Problem Statement
+### Issue lifecycle
 
-Traditional grievance systems often suffer from several problems:
+The issue model supports these statuses:
 
-### 1. Fragmented complaints
+`Filed` → `AI Classified` → `Assigned` → `Acknowledged` → `In Progress` → `Resolved` → `Community Verified` → `Closed`
 
-100 citizens may report the same pothole independently.
+Additional workflow states include `Under Review` and `Duplicate`. Allowed transitions depend on role. A citizen who filed, supported, or follows a resolved issue can confirm the outcome or dispute it, which reopens the issue to `In Progress`.
+
+## Important prototype boundaries
+
+These distinctions matter when demonstrating the project or preparing a pilot:
+
+| Capability | What is present | Boundary to communicate |
+| --- | --- | --- |
+| Classification | Rules-based taxonomy, language heuristics, confidence estimate, and citizen confirmation | This is a baseline, not a validated production model. Staff should review classification and routing. |
+| Online AI | Optional Groq classification with a configured server key | The composer must collect consent. Complaint text is sent to Groq only for that opted-in request. |
+| Duplicate detection | Same-PIN candidate ranking using lexical similarity plus locality, category/department, age, and evidence-presence signals | No embeddings, image matching, or automatic merge. Staff make duplicate decisions; citizens can identify a report as distinct. |
+| Chai Heat and priority | Separate community and operational signals | Scores and weights are prototype logic that must be reviewed with a pilot authority before operational use. |
+| Authority registry | Jurisdiction, hub, officer, source document, and optional service-target records | The registry starts empty or unverified. Never present invented contacts, laws, officers, or service targets as verified. |
+| Browser speech | Browser speech-recognition support where available | Depends on browser support and permission. It is not a retained audio recording. |
+| Phone IVR | A Twilio-compatible webhook with Hindi, Marathi, and English choices, consent, speech/DTMF input, PIN, duration, evidence prompt, and review | A live phone channel needs a provider number, public callback URL, credentials, and an operational owner. |
+| Offline | Cached app shell/public reads and consent-based local drafts | A draft is not filed while offline. Sync requires a later online session and authenticated submission. Staff operations are online-only. |
+| Notifications | In-app notification records and read state | Email, SMS, and web-push delivery are not integrated. |
+| Evidence uploads | Type/size checks and private Supabase storage paths | These checks do not scan files for malware. Configure scanning or disable uploads for a pilot until an approved process exists. |
+| Data rights | Request capture, review status, response note, and auditability | Fulfillment is a human compliance action; agree identity checks, retention rules, and operating timelines first. |
+| Civic/legal guidance | Source-linked registry for verified material | An LLM must not invent legal citations, procedures, staff, or public contacts. The registry must be populated and maintained by the authority. |
+| Phone and locality mapping | Citizen enters PIN and locality manually | QR-to-locality mapping is not implemented. A PIN or QR code must not be treated as proof of residency. |
+| Analytics | Issue queue metrics and approximate/aggregated heatmap | Seed data is synthetic and excluded from live heatmap calculations. Geographic and scoring assumptions need jurisdictional review. |
+
+## User journeys
+
+### File and track an issue
+
+1. The citizen opens `/citizen` and chooses a locality or PIN.
+2. They open the composer and enter the issue description, locality, and required six-digit PIN.
+3. The local classifier suggests a category, issue label, language, department, severity, and summary. The citizen can review the proposed information before submission.
+4. If online processing is enabled and the citizen opts in, the server may request a Groq classification. Otherwise the local rules result is used.
+5. The duplicate checker can suggest similar issues with the same PIN. The citizen can join/support a matching issue or identify a distinct issue; duplicate consolidation remains reviewable.
+6. The report receives a document ID such as `CC-401208-2026-XXXXXXXX`, is recorded with an initial status, and appears in the citizen's tracking view.
+7. Authorized staff triage, assign, acknowledge, and update status. Status-changing actions are auditable in connected mode.
+8. After staff mark an issue resolved, a participating citizen can confirm resolution or report that work remains incomplete.
+
+### Review and resolve an issue
+
+1. Staff sign in through Supabase Auth and complete TOTP MFA.
+2. The role and profile scope determine which dashboard and queue data they can access.
+3. A department operator or supervisor reviews the issue, assigns or updates it within their scope, and records status, notes, or resolution evidence.
+4. The status event and action audit record provide an operational trail.
+5. A citizen who participated in the issue can verify or dispute the reported outcome.
+
+### Submit a phone report
+
+The IVR route begins with language selection and a consent choice for speech-to-text. A caller can provide speech or use DTMF category choices, enter a PIN, describe duration, indicate whether evidence is available later, then hear and confirm a summary. The webhook validates the Twilio request signature and stores the call session in Supabase. If provider configuration or the connected database is missing, the route directs callers to the web portal.
+
+## Roles and access
+
+| Role key | Display name | Main responsibility | MFA in connected mode |
+| --- | --- | --- | --- |
+| `citizen` | Citizen | File, discuss, support, follow, and track issues | No staff MFA requirement |
+| `moderator` | Moderator | Review content reports and appeals | Required |
+| `department_operator` | Department operator | Process scoped department cases | Required |
+| `department_supervisor` | Department supervisor | Supervise a department queue and assignments | Required |
+| `authority_admin` | Authority administrator | Manage an authorized jurisdiction and its verified registry | Required |
+| `system_admin` | System administrator | Platform readiness and data-rights operations | Required |
+| `auditor` | Auditor | Read-only governance and audit review | Required |
+
+Connected-mode authorization reads the role from the protected Supabase `profiles` row, not editable user metadata. Department and authority records are scoped by the profile's department and/or PIN. The schema also uses row-level security (RLS), column grants, and server-only operations for sensitive changes.
+
+## Architecture
+
+```mermaid
+flowchart TD
+  Citizen[Citizen browser or installed PWA] --> Next[Next.js App Router]
+  Staff[Authority staff browser] --> Next
+  Phone[Twilio-compatible phone callback] --> IVR[Voice IVR API route]
+  IVR --> DB[(Supabase Postgres)]
+  Next --> UI[React pages and components]
+  Next --> API[Next.js API routes]
+  UI --> API
+  API --> Auth[Supabase Auth and TOTP MFA]
+  API --> DB
+  API --> Storage[Private Supabase evidence bucket]
+  API --> LocalAI[Rules-based classifier and scoring]
+  API -. explicit online-processing consent .-> Groq[Optional Groq API]
+  UI --> WebLLM[Optional browser WebLLM for STREE chat]
+  UI --> Offline[Service worker, public cache, IndexedDB drafts]
+```
+
+### Request and data boundaries
+
+- The browser uses the Supabase publishable key for Auth and approved client reads. The server-only service-role key is never exposed to browser code.
+- API routes validate the current Supabase user and read the protected profile for role and scope. Non-citizen actions require an MFA-authenticated Supabase session (AAL2).
+- Sensitive issue operations use server-side workflows and database functions. Migration `003_pilot_hardening.sql` restricts direct staff table writes and records issue actions/audit events transactionally.
+- Public feeds use safe columns and a server-side public projection. Exact coordinates, original report text, reporter IDs, and private evidence paths are excluded from public responses.
+- Rate-limited routes use a shared database-backed limiter in connected deployments. If shared request protection is unavailable, protected operations fail closed.
+- The browser-only local preview is deliberately not a production identity system or durable database.
+
+## AI, duplicate handling, and scoring
+
+### Classification
+
+The local classifier in `lib/ai.ts` uses a small keyword taxonomy for Public Lighting, Sanitation, Roads & Potholes, Water Supply, Drainage, Traffic, and Public Health, with a General civic issue fallback. It estimates language, issue type, location/PIN when present, severity, confidence, and a suggested department. Location and classification remain subject to citizen/staff review.
+
+The optional Groq path is server-side and has a configured model name (`GROQ_MODEL`, default `llama-3.3-70b-versatile`). It is used only when `onlineConsent` is true. The result is constrained to the known category list and falls back to local rules on request or parsing failure. This path is not retrieval-augmented and does not supply verified government facts.
+
+The STREE chat in `components/stree-chat.tsx` is a separate feature. It attempts to initialize a small WebLLM model in a browser with WebGPU support; when that is unavailable or fails, it uses local pattern-based civic guidance. It does not call the Groq classification endpoint.
+
+### Duplicate suggestions
+
+`lib/scoring.ts` first requires the same six-digit PIN, then ranks candidates using:
+
+- lexical Jaccard similarity over normalized words (including common Hindi/Marathi stop words);
+- locality match or presence;
+- category/department match;
+- report age; and
+- whether both reports include evidence.
+
+Candidates below the implementation's 60% score threshold are omitted. Results are ranked and limited to three. A score of 75% or higher is treated as a strong suggestion by the analyze route. These numbers are heuristic signals, not calibrated probabilities. The system does not automatically reject a report or merge issues based on a model score.
+
+### Chai Heat, priority, and trust
+
+These values have different meanings and are stored separately:
+
+- **Chai Heat** summarizes community participation through supporter/report activity.
+- **Priority** estimates operational urgency and impact.
+- **Evidence trust** describes confidence signals for a report; it is not a rating of the citizen.
+
+The initial deterministic priority calculation weights these factors:
+
+| Factor | Weight |
+| --- | ---: |
+| Severity | 25% |
+| Community support | 25% |
+| Independent reports/corroboration | 15% |
+| Persistence | 10% |
+| Geographic impact | 10% |
+| Evidence presence/quality signal | 10% |
+| SLA context | 5% |
+
+The score maps to `Critical` (82–100), `High` (65–81), `Moderate` (40–64), or `Low` (0–39). The connected database recalculates community signals when supports, reports, or comments change. Its current Chai Heat calculation is based on supporter and report counts and is capped at 100; local preview behavior is simplified. Treat these formulas as prototype defaults, not approved public policy.
+
+The report trust score combines evidence, whether a location was supplied, corroboration, report-text detail, and an anomaly penalty. It must never be used as a citizen reputation or to deny intake.
+
+## Privacy and security
+
+The code includes these safeguards:
+
+- Supabase Auth and protected profile-based role assignment in connected mode.
+- TOTP MFA for all staff roles and scoped authorization in API routes.
+- RLS policies and restricted column grants in the Supabase migrations.
+- Server-only service credentials for privileged operations; do not add a `NEXT_PUBLIC_` prefix to secret keys.
+- Private evidence storage scoped to the uploading account and authorized issue staff.
+- Public text redaction and removal of exact coordinates, original text, reporter identity, and private evidence URLs from public projections.
+- Audit events for administrative and issue workflow actions.
+- Rate limiting for issue creation, comments, AI analysis, evidence uploads, and moderation/content reports.
+- HTTPS-only source URL validation for registry records; only `.gov.in` or `.nic.in` sources may be marked verified.
+- Security headers configured in `next.config.mjs`.
+- Twilio request-signature validation for the IVR webhook.
+
+Operational protections still need owners and services before a real pilot: malware scanning, backups and restore drills, monitoring and alerting, incident response, privacy/retention policy, authority-approved response procedures, and independent security review. The detailed pilot requirements are summarized in this README and in [Supabase setup](supabase/README.md).
+
+## Offline and PWA behavior
+
+The PWA manifest starts at `/citizen`; the service worker caches a small application shell, static assets, and selected public issue/registry reads. When the network is unavailable it can return cached public data or an empty offline response.
+
+A citizen may explicitly consent to save an issue draft in browser IndexedDB. Drafts remain on the device and are shown as pending; they are submitted only after connectivity returns and an authenticated sync succeeds. The UI must not claim that an offline draft has been filed. Private staff operations and telephony submission are online-only.
+
+## Technology
+
+| Layer | Technology |
+| --- | --- |
+| Framework | Next.js 16 App Router |
+| UI | React 19, TypeScript, Tailwind CSS 4 |
+| Components and icons | Base UI, shadcn setup, Lucide React |
+| Authentication and database | Supabase Auth, Postgres, RLS, SQL functions and migrations |
+| Evidence | Supabase Storage private bucket |
+| Maps | Leaflet and React Leaflet; configurable map tiles |
+| Local model | `@mlc-ai/web-llm` in the browser where WebGPU is available |
+| Optional hosted model | Groq chat completion API for consented classification |
+| PWA | Web app manifest, service worker, browser IndexedDB drafts |
+| Hosting configuration | `vercel.json` is included |
+
+## Quick start
+
+### Requirements
+
+- Node.js compatible with the Next.js version in `package.json`.
+- `pnpm` (preferred in the repository) or `npm`.
+- A modern browser for the citizen and staff interfaces. WebGPU, microphone, and service-worker support vary by browser and device.
+
+### Local UI preview
+
+No Supabase project is required for a local UI preview. Ensure Supabase values are **unset or blank** in `.env.local`; the placeholder values in `.env.example` are examples and must not be used as real credentials.
+
+```bash
+cd Rodgers-SIH
+cp .env.example .env.local
+# Edit .env.local and leave Supabase URL and key values blank for local preview.
+pnpm install
+pnpm dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). The login screen offers browser-only demo roles. These sessions, in-memory issue data, and local browser storage are for UI review only; they are not secure authentication or durable storage. A clean local preview starts with an empty issue feed.
+
+Use npm if preferred:
+
+```bash
+npm install
+npm run dev
+```
+
+## Supabase setup
+
+Use a connected Supabase project to exercise durable authentication, database-backed workflows, MFA, evidence storage, registry, audit, and role scoping.
+
+1. Create a Supabase project and copy its project URL and publishable (or legacy anon) key.
+2. Apply the SQL migrations in order:
+   - `supabase/migrations/001_init.sql`
+   - `supabase/migrations/002_civicchai_platform.sql`
+   - `supabase/migrations/003_pilot_hardening.sql`
+
+   `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
+3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
+4. Set the public Supabase URL/publishable key and the server-only URL/service-role key in `.env.local` or deployment secrets.
+5. Create demo Auth users and profiles with:
+
+   ```bash
+   pnpm run seed:demo-users
+   ```
+
+   The script requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It is disabled in production unless `ALLOW_DEMO_USER_SEED=1` is explicitly set. Never enable this for a public deployment.
+6. Start the app. Staff demo accounts must enroll in TOTP MFA on their first connected-mode sign-in.
+7. Before accepting real submissions, populate and verify the authority registry and complete the pilot and production checklist in this README.
+
+### Demo identities
+
+All demo users use the shared password `CivicChai!2026` in the local preview and in the seeding script. The account list is maintained in `lib/roles.ts` and `scripts/seed-demo-users.mjs`.
+
+| Role | Email |
+| --- | --- |
+| Citizen | `citizen@civicchai.local` |
+| Moderator | `moderator@civicchai.local` |
+| Department operator | `operator@civicchai.local` |
+| Department supervisor | `supervisor@civicchai.local` |
+| Authority administrator | `authority@civicchai.local` |
+| System administrator | `system-admin@civicchai.local` |
+| Auditor | `auditor@civicchai.local` |
+
+Change or remove demo identities before exposing a connected environment beyond a controlled demonstration. The database seed adds synthetic issues separately; the account-seeding script does not seed real authority data.
+
+## Environment variables
+
+Copy `.env.example` as a reference, then supply only the values for integrations you are using. Keep secret values out of source control.
+
+| Variable | Required for | Notes |
+| --- | --- | --- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Connected browser and app | Supabase project URL; public by design. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Connected browser and app | Supabase publishable key. Legacy anon-key variable names are also accepted by the client. |
+| `SUPABASE_URL` | Server workflows and seed script | Supabase project URL for server-side clients. |
+| `SUPABASE_SERVICE_ROLE_KEY` | Server workflows and account seeding | Secret. Server-side only; grants privileged database access. |
+| `GROQ_API_KEY` | Optional online AI classification | Secret. Only used for a request where online processing consent is true. |
+| `GROQ_MODEL` | Optional online AI classification | Defaults to `llama-3.3-70b-versatile`. |
+| `APP_BASE_URL` | Phone IVR callback | Public base URL used to construct the Twilio webhook callback. |
+| `NEXT_PUBLIC_APP_URL` | App/IVR base URL fallback | Defaults in the example to `http://localhost:3000`; use the public HTTPS origin for a deployed IVR. |
+| `NEXT_PUBLIC_MAP_TILE_URL` | Map tiles | Tile URL template; OpenStreetMap is shown in the example. |
+| `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
+| `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
+| `ALLOW_DEMO_USER_SEED` | Exceptional production seeding only | Must be `1` to override the script's production guard. Avoid enabling in public environments. |
+
+Do not commit `.env.local`, service-role keys, provider tokens, or real citizen data.
+
+## Application routes
+
+| Route | Purpose |
+| --- | --- |
+| `/` | Public landing page and feature overview |
+| `/about` | Product background |
+| `/how-it-works` | Issue workflow explanation |
+| `/citizen` | Citizen feed, filing, personal tracking, and profile areas |
+| `/chai-tapri` | Community issue discovery |
+| `/issues/[id]` | Issue detail and discussion |
+| `/control-room` | Role-specific authority dashboard |
+| `/login` | Sign-in and local demo role selection |
+| `/mfa` | Staff TOTP enrollment/challenge |
+| `/voice-agent` | Browser-assisted voice reporting |
+| `/offline` | Offline state and recovery guidance |
+
+## API reference
+
+All routes are Next.js route handlers under `app/api`. Authentication and role requirements are enforced per route; public-safe endpoints intentionally return redacted/limited data. See the route handler for exact request and response fields.
+
+| Endpoint | Methods | Purpose / access summary |
+| --- | --- | --- |
+| `/api/health` | `GET` | Basic application health information. |
+| `/api/system/health` | `GET` | System/database readiness details; system administrator only. |
+| `/api/issues` | `GET`, `POST` | Filter issue feed; create a report with six-digit PIN and locality. |
+| `/api/issues/[id]` | `GET` | Fetch one issue; public projection for citizens, scoped detail for staff. |
+| `/api/public/issues` | `GET` | Public-safe issue feed for PWA clients. |
+| `/api/public/issues/[id]` | `GET` | Public-safe issue detail. |
+| `/api/public/trending` | `GET` | Public trending issue data. |
+| `/api/public/registry` | `GET` | Verified public authority registry data. |
+| `/api/issues/[id]/comments` | `GET`, `POST` | Read and add issue discussion comments; posting requires sign-in. |
+| `/api/issues/[id]/support` | `GET`, `POST` | Read current support state/count and support an issue. |
+| `/api/issues/[id]/follow` | `GET`, `POST`, `DELETE` | Read, add, or remove an issue follow. |
+| `/api/issues/[id]/timeline` | `GET` | Read the issue status timeline. |
+| `/api/issues/[id]/status` | `PATCH` | Role-scoped status/assignment operation with audit trail. |
+| `/api/issues/[id]/duplicates` | `GET`, `POST` | Review duplicate candidates and record a duplicate decision. |
+| `/api/issues/[id]/verification` | `POST` | Participating citizen confirms or disputes a resolved issue. |
+| `/api/issues/[id]/evidence` | `GET` | Authorized access to private issue evidence. |
+| `/api/evidence` | `POST` | Upload private image/video evidence (up to 4 MB per item). |
+| `/api/issues/[id]/report` | `POST` | Submit a moderation/content report. |
+| `/api/me/issues` | `GET` | List the signed-in citizen's filed/supported/followed issues. |
+| `/api/me/moderation-reports` | `GET`, `POST` | Read or submit reports made by the signed-in user. |
+| `/api/moderation` | `GET` | Moderator queue. |
+| `/api/moderation/[id]` | `PATCH` | Record a moderation decision. |
+| `/api/ai/analyze` | `POST` | Classify text, calculate signals, and return duplicate candidates; rate limited. |
+| `/api/gis/heatmap` | `GET` | Return aggregated issue heatmap data and filters. |
+| `/api/registry` | `GET`, `POST` | Read or manage jurisdiction-scoped hubs, officers, documents, and targets; authority administrator only. |
+| `/api/profile` | `GET`, `PATCH` | Read/update the signed-in user's profile and preferences. |
+| `/api/notifications` | `GET`, `PATCH` | Read notifications and mark them as read. |
+| `/api/privacy-requests` | `GET`, `POST`, `PATCH` | Submit/read data-rights requests; system administrator handles review updates. |
+| `/api/audit` | `GET` | Read scope-authorized audit events; auditor or authority administrator. |
+| `/api/voice/ivr` | `POST` | Twilio-compatible signed voice/DTMF callback. |
+
+## Data model
+
+The canonical Postgres schema and access policies live in `supabase/migrations/`. Main entity groups are:
+
+| Group | Tables | Purpose |
+| --- | --- | --- |
+| Identity and access | `profiles`, Supabase Auth users | Product role, display name, locality, PIN, department, language, consent and notification preferences. |
+| Taxonomy and jurisdiction | `categories`, `departments`, `jurisdictions` | Civic issue categories and authority area hierarchy. |
+| Issue and intake | `issues`, `issue_reports`, `issue_evidence` | Canonical issue, source report(s), classification/scoring metadata, consent, and private evidence references. |
+| Participation | `issue_supports`, `issue_follows`, `issue_comments` | Community support, personal follow state, and moderated discussion. |
+| Workflow and review | `status_events`, `issue_official_notes`, `duplicate_links`, `moderation_reports` | Status history, staff notes, duplicate decisions, content reports, and appeals. |
+| Authority reference | `authority_hubs`, `officer_registry`, `official_documents`, `sla_targets` | Source-backed jurisdiction contacts, routing information, public guidance, and optional service targets. |
+| Governance | `audit_logs`, `data_rights_requests`, `notifications` | Oversight, citizen rights workflow, and in-app updates. |
+| Platform operations | `voice_sessions`, `api_rate_limits` | Server-only IVR session state and shared request throttling. |
+
+An issue stores a public-facing document ID and description, original/normalized text, category and department, jurisdiction labels, status, priority and trust factors, Chai Heat, counts, channel/model metadata, evidence presence, and timestamps. Access policies intentionally do not make every column public. The full relationships and constraints are defined in SQL rather than duplicated here.
+
+### Database setup files
+
+- `supabase/migrations/001_init.sql`: core identity, taxonomy, issues, comments, supports, and basic audit schema.
+- `supabase/migrations/002_civicchai_platform.sql`: role/scope helpers, platform entities, RLS, storage, scoring and workflow functions.
+- `supabase/migrations/003_pilot_hardening.sql`: hardened server-side issue actions, role transition checks, geographic scope fields, and schema version marker.
+- `supabase/schema.sql`: consolidated fresh-project schema.
+- `supabase/seed.sql`: synthetic demo jurisdictions/issues only.
+
+## Repository map
 
 ```text
-Citizen 1 → Complaint A
-Citizen 2 → Complaint B
-Citizen 3 → Complaint C
-...
-Citizen 100 → Complaint Z
-```
-
-The administration sees 100 tickets instead of one underlying civic problem.
-
----
-
-### 2. Language barriers
-
-Citizens may report problems using:
-
-* Hindi
-* Marathi
-* English
-* Hinglish
-* Regional languages
-* Code-mixed speech
-
-Traditional forms are often optimized for structured English-language input.
-
----
-
-### 3. Lack of prioritization
-
-A government department may receive thousands of complaints but struggle to understand:
-
-> Which problem is actually affecting the community the most?
-
----
-
-### 4. Poor transparency
-
-Citizens often do not know:
-
-* Which department received the complaint
-* Which jurisdiction handles it
-* Where the office is
-* Who is responsible
-* What process applies
-* What happens next
-
----
-
-### 5. Digital divide
-
-A smartphone-only platform excludes people using:
-
-* Basic phones
-* Keypad phones
-* Voice calls
-* Low-bandwidth connections
-
----
-
-### 6. Lack of civic context
-
-A citizen may know:
-
-> "There is a problem."
-
-But not:
-
-> "Which department is responsible?"
-
-> "Where do I go?"
-
-> "What public process applies?"
-
-> "How do I follow up?"
-
-CivicChai attempts to solve all of these problems in a single platform.
-
----
-
-# 🚀 Our Solution
-
-CivicChai introduces a new model:
-
-```text
-                CITIZEN
-                   │
-                   ▼
-          TEXT / VOICE / CALL
-                   │
-                   ▼
-            AI UNDERSTANDS
-                   │
-                   ▼
-        CLASSIFICATION + LOCATION
-                   │
-                   ▼
-          DUPLICATE DETECTION
-             /            \
-           YES             NO
-            │               │
-            ▼               ▼
-     SUPPORT EXISTING      CREATE
-        CHARCHA            ISSUE
-            │               │
-            └───────┬───────┘
-                    ▼
-             COMMUNITY SUPPORT
-                    │
-                    ▼
-               CHAI HEAT 🔥
-                    │
-                    ▼
-             PRIORITY ENGINE
-                    │
-                    ▼
-          DEPARTMENT / OFFICER
-                    │
-                    ▼
-               GOVERNMENT
-                    │
-                    ▼
-                ACTION
-                    │
-                    ▼
-               RESOLUTION
-                    │
-                    ▼
-             CITIZEN VERIFICATION
-```
-
----
-
-# 🇮🇳 Why CivicChai?
-
-The fundamental idea is based on a familiar Indian social experience:
-
-## The Chai Tapri
-
-A chai tapri is more than a place to drink tea.
-
-It is where people:
-
-* Talk
-* Debate
-* Share information
-* Discuss local problems
-* Exchange opinions
-* Discuss politics
-* Discuss cricket
-* Discuss their neighborhood
-
-CivicChai takes that concept digital.
-
-### Physical world
-
-**Chai Tapri → Charcha → Community awareness**
-
-### CivicChai
-
-**Chai Tapri → Digital Charcha → Civic action**
-
----
-
-# 🫖 Core Philosophy
-
-Every concept in CivicChai is connected to the Chai metaphor.
-
-| CivicChai              | Meaning               |
-| ---------------------- | --------------------- |
-| ☕ Chai                 | Civic issue           |
-| 💬 Charcha             | Discussion            |
-| 🔥 Chai Heat           | Community support     |
-| 🫖 Chai Tapri          | Trending civic issues |
-| 📍 Local Chai          | Locality-based feed   |
-| ➕ Pour a Chai          | File a grievance      |
-| 👥 Chai Community      | Citizens              |
-| 🧠 AI Chaiwala         | AI engine             |
-| 🏛️ Civic Control Room | Government dashboard  |
-
-The metaphor should remain understandable even to someone who has never used the platform.
-
----
-
-# 🏗️ Product Architecture
-
-CivicChai consists of two primary portals.
-
-```text
-                         CIVICCHAI
-                            │
-                ┌───────────┴───────────┐
-                │                       │
-                ▼                       ▼
-        CITIZEN PORTAL          GOVERNMENT PORTAL
-                │                       │
-                └───────────┬───────────┘
-                            ▼
-                       CORE BACKEND
-                            │
-       ┌────────────┬───────┼──────────┬────────────┐
-       ▼            ▼       ▼          ▼            ▼
-      NLP        Duplicate  Priority   GIS        Documents
-       │         Engine     Engine      │            │
-       └────────────┬────────┴──────────┘            │
-                    ▼                                │
-              AI ORCHESTRATOR ◄─────────────────────┘
-                    │
-           ┌────────┴────────┐
-           ▼                 ▼
-      Local/WebLLM       Online AI
-```
-
----
-
-# 👥 Two-Portal Architecture
-
-## Portal 1 — Citizen Portal
-
-Designed around:
-
-> **Discovery → Charcha → Complaint → Support → Tracking**
-
-The interface should feel like a social platform.
-
----
-
-## Portal 2 — Government Dashboard
-
-Designed around:
-
-> **Monitor → Classify → Prioritize → Assign → Resolve → Analyse**
-
-The interface should feel like an operational control room.
-
----
-
-# 📱 Citizen Portal
-
-The citizen application contains four major navigation areas.
-
-## 1. Local Chai
-
-The home feed.
-
-Shows civic issues around the citizen's locality.
-
-Example:
-
-```text
-☕ LOCAL CHAI
-
-PIN 401208
-
-🔥 Station Road Potholes
-94° Chai Heat
-
-2,431 supporters
-87 reports
-
-Road Department
-Status: Assigned
-
-[🔥 Support] [💬 Charcha]
-```
-
----
-
-## 2. Chai Tapri
-
-Trending issues.
-
-Users can discover:
-
-* Hottest issues
-* Rising issues
-* Nearby issues
-* Unresolved issues
-
----
-
-## 3. My Charcha
-
-Contains:
-
-* Filed complaints
-* Tracking
-* Upvoted complaints
-* Followed complaints
-* Resolved complaints
-
----
-
-## 4. Profile
-
-Contains:
-
-* Profile
-* Locality
-* Language
-* Complaint history
-* Supported issues
-* Notifications
-* Privacy
-* Accessibility
-* Settings
-
----
-
-# ➕ Complaint Filing
-
-The central `+` button is the most important action.
-
-Label:
-
-> **Pour a Chai**
-
-Options:
-
-```text
-📝 Type
-🎙 Record
-📷 Add Proof
-📞 Call CivicChai
-```
-
----
-
-# 🎙 Multilingual Voice AI
-
-Users should not have to type.
-
-Example:
-
-> "Station road var khup motha khadda aahe."
-
-The system processes:
-
-```text
-Language:
-Marathi
-
-Intent:
-Civic Complaint
-
-Category:
-Roads
-
-Issue:
-Pothole
-
-Location:
-Station Road
-
-PIN:
-401208
-
-Department:
-Roads Department
-```
-
----
-
-# 📞 Keypad Phone Support
-
-CivicChai is designed to work even without smartphones.
-
-### Call flow
-
-```text
-CALL
- │
- ▼
-LANGUAGE
- │
- ▼
-PROBLEM
- │
- ▼
-LOCATION
- │
- ▼
-PIN
- │
- ▼
-PROOF?
- │
- ▼
-AI SUMMARY
- │
- ▼
-CONFIRM
- │
- ▼
-COMPLAINT CREATED
- │
- ▼
-DOCUMENT ID
-```
-
-Example:
-
-> "Aapki shikayat hai ki Station Road par 15 din se streetlights band hain."
-
-Citizen:
-
-> "Haan."
-
-System:
-
-> "Aapki complaint successfully register ho gayi hai. Complaint ID CC-401208-2026-0001842 hai."
-
----
-
-# 🧠 AI Complaint Classification
-
-The NLP engine extracts:
-
-* Language
-* Intent
-* Category
-* Subcategory
-* Location
-* Time
-* Severity
-* Department
-* Required evidence
-* Potential duplicate
-
-Example:
-
-```json
-{
-  "language": "hinglish",
-  "category": "public_lighting",
-  "subcategory": "streetlight_outage",
-  "location": "Station Road",
-  "pincode": "401208",
-  "duration": "15 days",
-  "department": "municipal_lighting",
-  "confidence": 0.94
-}
-```
-
----
-
-# 🔁 Duplicate Complaint Detection
-
-This is one of CivicChai's core features.
-
-Suppose someone submits:
-
-> "Station Road ki streetlights 15 din se band hain."
-
-AI finds:
-
-> **Similar Charcha already exists.**
-
-Instead of rejecting the citizen:
-
-```text
-☕ Yeh Chai pehle se chal rahi hai!
-
-Station Road Streetlights
-
-1,842 supporters
-52 reports
-17 days unresolved
-
-🔥 92° Chai Heat
-
-[Support Existing Issue]
-
-[This is a different problem]
-```
-
----
-
-# 🧬 Duplicate Detection Architecture
-
-Duplicate detection combines:
-
-### Semantic similarity
-
-Does the complaint mean the same thing?
-
-### Geographic similarity
-
-Is it happening in the same location?
-
-### Category similarity
-
-Is it the same type of civic problem?
-
-### Time similarity
-
-Is the complaint referring to the same incident?
-
-### Evidence similarity
-
-Are the photographs/videos potentially related?
-
----
-
-## Important principle
-
-AI should **suggest** a duplicate.
-
-It should not blindly reject a citizen.
-
-This prevents false positives.
-
----
-
-# 🔥 Chai Heat
-
-Chai Heat is CivicChai's community-support mechanism.
-
-It represents:
-
-> **How strongly the community is talking about/supporting this issue.**
-
-Example:
-
-```text
-☕ CHAI HEAT
-
-94°
-
-🔥🔥🔥🔥🔥
-
-2,431 supporters
-87 citizen reports
-17 days unresolved
-```
-
-Chai Heat can consider:
-
-* Upvotes
-* Independent reports
-* Recent growth
-* Community activity
-* Geographic concentration
-* Spam/manipulation signals
-
----
-
-# ⚠️ Chai Heat ≠ Priority
-
-These must remain separate.
-
-### Chai Heat
-
-> Community support.
-
-### Priority
-
-> Actual civic urgency/importance.
-
-### Trust
-
-> Confidence in the evidence/report.
-
-Therefore:
-
-```text
-Chai Heat: 94
-Priority: 88
-Evidence Confidence: 82
-```
-
-A dangerous issue should remain high priority even if few citizens have discovered it.
-
----
-
-# 🚨 Priority Engine
-
-Recommended initial factors:
-
-| Factor                | Weight |
-| --------------------- | -----: |
-| Severity / urgency    |    25% |
-| Community support     |    25% |
-| Independent reports   |    15% |
-| Persistence           |    10% |
-| Geographic impact     |    10% |
-| Evidence quality      |    10% |
-| Authority/SLA context |     5% |
-
-Example:
-
-```text
-Severity          23/25
-Community         22/25
-Reports           13/15
-Persistence        9/10
-Geography          8/10
-Evidence           8/10
-SLA                4/5
---------------------------------
-Priority           87/100
-```
-
----
-
-# 🛡️ Trust / Evidence Score
-
-CivicChai should never create a social-credit-style citizen score.
-
-Instead:
-
-> **Report Confidence / Evidence Confidence**
-
-Possible signals:
-
-* Proof attached
-* Location consistency
-* Independent corroboration
-* Evidence quality
-* Description consistency
-* Spam/anomaly indicators
-
-A low-confidence report should still be allowed into the system.
-
----
-
-# 📄 Civic Report
-
-Every accepted complaint should become a structured CivicChai report.
-
-Example:
-
-```text
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-☕ CIVICCHAI CIVIC REPORT
-
-Document ID:
-CC-401208-2026-0001842
-
-ISSUE
-Station Road Streetlight Outage
-
-LOCATION
-PIN 401208
-
-CATEGORY
-Public Lighting
-
-DEPARTMENT
-Municipal Public Lighting
-
-JURISDICTION
-Ward X
-
-OFFICIAL OFFICE
-Verified Municipal Hub
-
-CONTACT
-Officially published contact
-
-PRIORITY
-88 / 100
-
-EVIDENCE CONFIDENCE
-82 / 100
-
-CHAI HEAT
-94°
-
-REPORTS
-87
-
-SUPPORTERS
-2,431
-
-STATUS
-IN PROGRESS
-
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-```
-
----
-
-# 🎓 Civic Education Engine
-
-After filing, CivicChai explains:
-
-> **"Samjho tumhari Chai kahan ja rahi hai."**
-
-The system explains:
-
-### What is the problem?
-
-Streetlight outage.
-
-### Which department?
-
-Public Lighting.
-
-### Which jurisdiction?
-
-PIN 401208 / Ward X.
-
-### Where is the hub?
-
-Verified local hub.
-
-### Who handles it?
-
-Officially published designated office/role.
-
-### What public process applies?
-
-Relevant verified public service information.
-
-### What happens next?
-
-Assignment → action → resolution → verification.
-
----
-
-# ⚖️ Legal Information
-
-The system should use verified sources.
-
-Never allow an LLM to simply invent:
-
-* Laws
-* Sections
-* Officers
-* Government contacts
-* Government procedures
-
-Every reference should have:
-
-```text
-Authority
-Document ID
-Publication date
-Effective date
-Version
-Source
-Verification date
-```
-
-And:
-
-> **“This information is provided for civic education and does not constitute legal advice.”**
-
----
-
-# 🏢 Department & Officer Routing
-
-The AI identifies the responsible department.
-
-Example:
-
-```text
-Problem
-   ↓
-Streetlight
-   ↓
-Public Lighting
-   ↓
-Municipality
-   ↓
-Ward
-   ↓
-PIN 401208
-   ↓
-Relevant Hub
-   ↓
-Official Office / Designated Officer
-```
-
-The routing database should be version controlled.
-
----
-
-# 📍 PIN-Code Hub System
-
-Each locality can have a civic hub.
-
-Example:
-
-```text
-PIN:
-401208
-
-Locality:
-Demo Locality
-
-Ward:
-X
-
-Authority:
-Municipal Corporation
-
-Hub:
-Civic Service Hub
-
-Address:
-Officially verified address
-
-Contact:
-Officially published contact
-
-Last verified:
-01 Sep 2026
-```
-
-QR codes can point citizens toward their locality.
-
-### Important
-
-A QR code should identify a locality/service context.
-
-It should **not automatically be treated as proof of residency**.
-
----
-
-# 📈 Complaint Tracking
-
-Every complaint receives a status timeline.
-
-```text
-✓ Filed
-   ↓
-✓ AI Classified
-   ↓
-✓ Duplicate Checked
-   ↓
-✓ Department Assigned
-   ↓
-✓ Officer/Office Acknowledged
-   ↓
-● In Progress
-   ↓
-○ Resolved
-   ↓
-○ Citizen Verified
-   ↓
-○ Closed
-```
-
----
-
-# 🗺️ GIS & Civic Hotspots
-
-CivicChai can aggregate complaints geographically.
-
-Example:
-
-```text
-401208
-
-Road Problems       ██████████
-Streetlights        ███████
-Garbage             █████
-Water               ████
-Drainage            ███
-```
-
-The system can generate:
-
-* Locality hotspots
-* Ward hotspots
-* Department hotspots
-* Issue-density maps
-* Priority maps
-* Resolution maps
-
-Public maps should use appropriate location generalization.
-
-The Control Room GIS uses Leaflet and OpenStreetMap tiles, with separate Chai heat, issue-density, priority and resolution layers plus department/category filters. Its private `/api/gis/heatmap` endpoint is restricted to map-authorized roles and returns only aggregates on an approximately 1 km grid; exact device coordinates are never sent to the map. Citizens must opt in to device location when filing a report. Synthetic SQL seed records are marked `is_demo` and excluded from live heat calculations; the local demo issue store starts empty rather than injecting mock complaints. `NEXT_PUBLIC_MAP_TILE_URL` and `NEXT_PUBLIC_MAP_ATTRIBUTION` can be set for a compatible tile provider. The default OpenStreetMap tile server is best-effort and subject to its usage policy; do not prefetch tiles or offer offline map downloads.
-
----
-
-# 🧠 WebLLM + Hybrid AI
-
-CivicChai uses a hybrid AI architecture.
-
-```text
-                USER
-                  │
-                  ▼
-           LOCAL PROCESSING
-             / WebLLM
-                  │
-         ┌────────┴────────┐
-         │                 │
-      SIMPLE             COMPLEX
-         │                 │
-         ▼                 ▼
-      LOCAL            ONLINE AI
-         │                 │
-         └────────┬────────┘
-                  ▼
-          VERIFIED DATA/RAG
-                  │
-                  ▼
-          STRUCTURED OUTPUT
-```
-
----
-
-# 💻 WebLLM
-
-WebLLM can support local browser inference for appropriate tasks.
-
-Potential use cases:
-
-* Language detection
-* Basic classification
-* Normalization
-* Lightweight AI assistance
-* Cached civic information
-* Offline preparation
-
-Not every device will support large local models.
-
-Therefore, graceful fallback is required.
-
----
-
-# 📴 Offline Architecture
-
-Offline mode should support:
-
-* Drafting
-* Voice recording
-* Evidence capture
-* Cached locality information
-* Cached taxonomy
-* Complaint preparation
-
-When internet returns:
-
-```text
-Pending Sync
-     ↓
-Secure Upload
-     ↓
-Server Validation
-     ↓
-AI Processing
-     ↓
-Complaint Created
-```
-
-Never tell a citizen:
-
-> "Complaint submitted"
-
-until the server confirms it.
-
----
-
-# 🏗️ System Architecture
-
-```text
-                     ┌────────────────────┐
-                     │   CITIZEN PORTAL   │
-                     │ Web / PWA / Mobile │
-                     └─────────┬──────────┘
-                               │
-                     ┌─────────▼──────────┐
-                     │    API GATEWAY     │
-                     │ Auth / Rate Limits │
-                     └─────────┬──────────┘
-                               │
-              ┌────────────────▼────────────────┐
-              │         CORE PLATFORM           │
-              │                                │
-              │ Issues • Votes • Comments      │
-              │ Tracking • Reports             │
-              └───────┬──────────┬─────────────┘
-                      │          │
-              ┌───────▼───┐  ┌───▼────────────┐
-              │ AI ENGINE │  │ CIVIC KNOWLEDGE│
-              │           │  │ BASE           │
-              │ NLP       │  │ Laws           │
-              │ Duplicate │  │ Departments    │
-              │ Priority  │  │ Officers       │
-              │ Trust     │  │ Hubs           │
-              └───────┬───┘  │ Documents      │
-                      │      └────────────────┘
-                      │
-             ┌────────▼─────────┐
-             │ GOVERNMENT       │
-             │ DASHBOARD        │
-             │                  │
-             │ Queue            │
-             │ Analytics        │
-             │ GIS              │
-             │ Reports          │
-             │ Tracking         │
-             └──────────────────┘
-```
-
----
-
-# 🗃️ Data Architecture
-
-Core entities:
-
-```text
-User
-Locality
-PIN
-Hub
-Department
-Officer
-Issue
-Report
-Vote
-Comment
-Evidence
-DuplicateLink
-PriorityScore
-TrustScore
-Document
-LegalReference
-StatusEvent
-Notification
-AuditLog
-```
-
----
-
-# 🔐 Security
-
-CivicChai must implement:
-
-* Authentication
-* Authorization
-* RBAC
-* MFA for administration
-* Rate limiting
-* Secure sessions
-* Encryption
-* Secure API access
-* File validation
-* Malware scanning
-* Audit logging
-* PII detection
-* Prompt injection protection
-* Abuse detection
-* Vote manipulation detection
-
----
-
-# 🔒 Privacy
-
-The system should minimize exposure of personal information.
-
-Public users should not automatically see:
-
-* Phone numbers
-* Private email
-* Exact residential address
-* Sensitive identity data
-
-Government users should only receive information required for their authorized function.
-
----
-
-# ⚖️ Compliance
-
-CivicChai should maintain a compliance matrix covering, as applicable:
-
-### DPDP Act 2023
-
-Areas include:
-
-* Notice
-* Purpose limitation
-* Data minimization
-* Applicable processing basis
-* Data principal rights
-* Security safeguards
-* Retention
-* Grievance handling
-* Breach response
-
-### DPDP Rules 2025
-
-Production implementation should account for applicable rules and commencement timelines.
-
-### IT Rules 2021
-
-Because CivicChai hosts:
-
-* Posts
-* Comments
-* Images
-* Videos
-* Civic discussions
-
-the platform should undergo an appropriate intermediary/content-governance assessment.
-
-### CERT-In
-
-Maintain:
-
-* Incident response
-* Logging
-* Incident escalation
-* Applicable reporting processes
-
-### RPwD
-
-Design for:
-
-* Screen readers
-* Keyboard access
-* Captions
-* Transcripts
-* Accessible controls
-* Voice interaction
-* Clear contrast
-* Non-color-only indicators
-
-**Final production compliance must be reviewed by qualified Indian legal counsel and the relevant deployment authority.**
-
----
-
-# 🤖 AI Governance
-
-Every AI-generated decision should be traceable.
-
-Store:
-
-```text
-Model
-Version
-Prompt / configuration where appropriate
-Input reference
-Output
-Confidence
-Timestamp
-Decision
-Human override
-```
-
-AI should recommend.
-
-Authorized humans should retain responsibility for important administrative actions.
-
----
-
-# 🚫 Anti-Spam & Anti-Manipulation
-
-The platform should detect:
-
-* Fake accounts
-* Bot voting
-* Mass voting
-* Coordinated manipulation
-* Duplicate spam
-* Abusive comments
-* Malicious uploads
-
-Most importantly:
-
-> **Raw votes must never be the only measure of civic priority.**
-
----
-
-# ♿ Accessibility
-
-CivicChai should support:
-
-* WCAG-oriented design
-* Keyboard navigation
-* Screen readers
-* Captions
-* Voice input
-* Keypad phones
-* Large touch targets
-* High contrast
-* Simple language
-* Multilingual support
-
----
-
-# 🛠️ Recommended Technology Stack
-
-A practical implementation can use:
-
-### Frontend
-
-* Next.js
-* React
-* TypeScript
-* Tailwind CSS
-* PWA
-* Framer Motion
-
-### Backend
-
-* Node.js
-* TypeScript
-* REST/GraphQL APIs
-
-### Database
-
-* PostgreSQL
-* PostGIS
-
-### Search
-
-* PostgreSQL full-text search
-* pgvector / vector database
-
-### AI
-
-* WebLLM
-* Online LLM API
-* Embedding model
-* Speech-to-text
-* RAG pipeline
-
-### Storage
-
-* S3-compatible object storage
-
-### Maps
-
-* MapLibre / OpenStreetMap or an appropriate GIS provider
-
-### Authentication
-
-* OAuth / OTP / secure session authentication
-
-### Voice
-
-* Telephony provider
-* IVR
-* Speech recognition
-* DTMF fallback
-
----
-
-# 🔌 API Architecture
-
-Example:
-
-### Create complaint
-
-```http
-POST /api/issues
-```
-
-```json
-{
-  "input_type": "voice",
-  "language": "mr",
-  "text": "Station road var khup motha khadda aahe",
-  "pincode": "401208",
-  "location": {
-    "lat": 19.123,
-    "lng": 72.123
-  }
-}
-```
-
----
-
-### Duplicate search
-
-```http
-POST /api/issues/duplicate-check
-```
-
-Response:
-
-```json
-{
-  "duplicate_found": true,
-  "similarity": 0.93,
-  "existing_issue_id": "CC-401208-2026-0001201"
-}
-```
-
----
-
-### Support issue
-
-```http
-POST /api/issues/:id/support
-```
-
----
-
-### Track complaint
-
-```http
-GET /api/issues/:id
-```
-
----
-
-# 🧪 Example End-to-End Flow
-
-## Citizen
-
-Citizen says:
-
-> "Station Road ki streetlight 15 din se band hai."
-
-### Step 1 — AI
-
-```text
-Language: Hinglish
-Category: Public Lighting
-Issue: Streetlight outage
-Location: Station Road
-PIN: 401208
-```
-
-### Step 2 — Duplicate engine
-
-Finds:
-
-```text
-Existing Issue
-
-Station Road Streetlights
-
-Similarity: 93%
-```
-
-### Step 3 — Citizen
-
-Chooses:
-
-> 🔥 Support Existing Issue
-
-### Step 4 — Community
-
-```text
-Reports: 52
-Supporters: 1,842
-Chai Heat: 92°
-```
-
-### Step 5 — Government
-
-Dashboard shows:
-
-```text
-#1 Local Civic Issue
-
-Streetlight outage
-
-Priority: 88
-Chai Heat: 92
-
-Department:
-Public Lighting
-
-PIN:
-401208
-
-Status:
-Assigned
-```
-
-### Step 6 — Action
-
-Officer updates:
-
-> In Progress
-
-### Step 7 — Resolution
-
-Authority uploads resolution evidence.
-
-### Step 8 — Citizen
-
-Citizen verifies:
-
-> **☕ Chai Served / Issue Resolved**
-
----
-
-# 📊 Government Dashboard Metrics
-
-Dashboard should display:
-
-### Overview
-
-```text
-Total Issues
-Critical Issues
-High Priority
-Unassigned
-In Progress
-Overdue
-Resolved
-Duplicate Reduction
-```
-
-### Department
-
-```text
-Roads
-Water
-Waste
-Lighting
-Drainage
-Traffic
-Public Health
-Other
-```
-
-### Geographic
-
-```text
-State
-District
-Municipality
-Ward
-PIN
-Locality
-```
-
-### Temporal
-
-```text
-Today
-7 Days
-30 Days
-3 Months
-Custom
-```
-
----
-
-# 🗄️ Database Schema
-
-Simplified model:
-
-```text
-users
- ├── id
- ├── name
- ├── phone
- ├── email
- ├── language
- └── locality_id
-
-localities
- ├── id
- ├── name
- ├── pincode
- ├── ward
- └── authority_id
-
-issues
- ├── id
- ├── document_id
- ├── title
- ├── description
- ├── category
- ├── department_id
- ├── locality_id
- ├── priority
- ├── trust_score
- ├── chai_heat
- ├── status
- └── created_at
-
-reports
- ├── id
- ├── issue_id
- ├── user_id
- ├── evidence_id
- └── created_at
-
-votes
- ├── id
- ├── issue_id
- ├── user_id
- └── created_at
-
-comments
- ├── id
- ├── issue_id
- ├── user_id
- └── content
-
-documents
- ├── id
- ├── issue_id
- ├── title
- ├── source
- ├── version
- └── verified_at
-
-status_events
- ├── id
- ├── issue_id
- ├── old_status
- ├── new_status
- ├── actor
- └── timestamp
-```
-
----
-
-# 📁 Project Structure
-
-Recommended:
-
-```text
-civicchai/
-│
-├── apps/
-│   ├── citizen/
-│   └── government/
-│
+Rodgers-SIH/
+├── app/                         Next.js pages and API route handlers
+│   ├── api/                     REST-style route handlers
+│   ├── citizen/                 Citizen portal route
+│   ├── control-room/            Authority dashboard route
+│   ├── issues/[id]/             Issue detail route
+│   ├── login/ and mfa/           Authentication screens
+│   ├── voice-agent/              Browser voice reporting route
+│   └── globals.css               Global design tokens and styles
 ├── components/
-│   ├── chai-card/
-│   ├── complaint-card/
-│   ├── chai-heat/
-│   ├── timeline/
-│   ├── report/
-│   ├── duplicate/
-│   └── maps/
-│
-├── backend/
-│   ├── auth/
-│   ├── issues/
-│   ├── users/
-│   ├── departments/
-│   ├── officers/
-│   ├── hubs/
-│   ├── documents/
-│   └── analytics/
-│
-├── ai/
-│   ├── classification/
-│   ├── duplicate/
-│   ├── priority/
-│   ├── trust/
-│   ├── embeddings/
-│   ├── rag/
-│   └── webllm/
-│
-├── database/
-│   ├── schema/
-│   ├── migrations/
-│   └── seeds/
-│
-├── telephony/
-│   ├── ivr/
-│   ├── voice/
-│   └── dtmf/
-│
-├── docs/
-│   ├── architecture/
-│   ├── compliance/
-│   └── api/
-│
-└── README.md
+│   ├── auth/                    Sign-in and MFA screens
+│   ├── brand/                   Issue cards, badges, timeline, heat meter
+│   ├── citizen/                 Citizen app, composer, views, voice flow
+│   ├── gov/                     Control room, role dashboards, map views
+│   ├── landing/                 Landing and product overview sections
+│   ├── stree-chat.tsx            STREE civic co-pilot widget
+│   └── ui/                      Shared UI primitives
+├── lib/                         Domain logic and service clients
+│   ├── ai.ts                    Local classifier and optional Groq client
+│   ├── api-auth.ts               Request identity, role and MFA checks
+│   ├── issues.ts                 Issue queries, creation, and workflow helpers
+│   ├── scoring.ts                Priority, trust, and duplicate heuristics
+│   ├── privacy.ts                Public text redaction/projection
+│   ├── offline-*.ts              Public cache and local draft queue
+│   ├── roles.ts                  Product roles and role helpers
+│   └── supabase.ts               Browser/server Supabase clients
+├── public/                      Icons, PWA manifest, service worker, images
+├── scripts/                     Demo Auth user seeding script
+├── supabase/                    Migrations, consolidated schema, seed data
+├── .env.example                 Environment variable reference
+├── package.json                 Scripts and dependencies
+└── README.md                     This document
 ```
 
----
+## Pilot and production checklist
 
-# 🏁 MVP
+Before a live pilot, the responsible authority and deployment team should:
 
-For the hackathon, focus on the following.
+1. Apply all three migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
+2. Use individual accounts with least-privilege role, department, and jurisdiction scopes. Change or remove shared demo credentials. Enroll staff in TOTP MFA.
+3. Populate and verify official jurisdiction, hub, department, officer/contact, legal-document, and optional service-target records from approved sources. Keep records unverified until reviewed.
+4. Approve privacy notices, consent language, data-retention/deletion rules, identity checks for data-rights requests, and the owners who fulfill those requests.
+5. Define moderation coverage, duplicate review, issue assignment, escalation, resolution verification, incident response, and service-target procedures.
+6. If phone intake is in scope, configure and test the Twilio number, HTTPS callback, `APP_BASE_URL`, `TWILIO_AUTH_TOKEN`, consent script, transcription, DTMF fallback, correction, and final readback.
+7. Connect malware scanning or disable evidence uploads until an approved file-handling workflow exists. Current validation checks declared type, file signature, and a 4 MB limit; it is not malware scanning.
+8. Configure backups, verify a restore, monitor application/database errors, name an incident contact, and complete an independent security review.
+9. Run jurisdiction-approved acceptance sessions for each role, out-of-scope access, redaction, accessibility, real mobile/offline sync, voice/DTMF, duplicate merge/unmerge, status evidence, notifications, and lost-device/data-rights scenarios.
+10. State clearly which official grievance and emergency channels remain authoritative. Do not describe CivicChai as a statutory grievance or appeal channel unless the responsible authority formally approves that use and its integrations.
 
-## Must Have
+The detailed coverage table and pilot boundaries are in this README and [Supabase setup](supabase/README.md).
 
-### Citizen
+## SOP coverage
 
-* Local Chai
-* Complaint filing
-* Voice/text
-* Multilingual AI
-* Classification
-* Duplicate detection
-* Support existing issue
-* Chai Heat
-* Complaint report
-* Tracking
+The product is aligned to the two-portal model in `CivicChai_PS2_Master_SOP_v2_Two_Portals.pdf`.
 
-### Government
+| SOP area | Application surface | Implementation status |
+| --- | --- | --- |
+| Citizen Portal | `/citizen`, `/chai-tapri`, `/issues/[id]` | Implemented |
+| Complaint composer | Citizen composer, `/api/issues`, `/api/ai/analyze` | Implemented with local baseline classification |
+| Text and voice intake | Composer, browser voice agent, `/api/voice/ivr` | Implemented; provider setup required for phone |
+| Duplicate detection | Composer suggestions and control-room duplicate review | Implemented as human-reviewed heuristics |
+| Community participation | Support, follow, comments, reports, moderation | Implemented |
+| Chai Heat | Issue cards, issue metrics, scoring helpers | Implemented as prototype scoring |
+| Government dashboard | `/control-room` and role dashboard | Implemented with role-specific views and navigation |
+| Department routing | PIN/department scope and issue APIs | Implemented; authority registry must be configured |
+| GIS/hotspots | GIS dashboard and `/api/gis/heatmap` | Implemented with aggregate/approximate data |
+| Registry and legal education | Authority registry APIs and views | Implemented; records remain unverified until sourced |
+| Audit and compliance | `/api/audit`, status events, moderation and privacy records | Implemented in connected mode |
+| Offline support | PWA shell, public cache, IndexedDB drafts | Implemented with online authenticated sync required |
+| Accessibility and governance | Semantic controls, labels, explicit consent and review paths | Requires deployment-specific acceptance testing |
 
-* Dashboard
-* Complaint queue
-* Department filtering
-* Priority
-* Chai Heat
-* Issue details
-* Status updates
-* Basic analytics
+The SOP remains the source of product policy. Code behavior is a prototype implementation and must not be treated as an authority's approved process without review.
 
----
+## Demo walkthrough
 
-# 🔮 Future Roadmap
+### Local browser-only demo
 
-## Phase 1
+1. Start the app with Supabase variables blank.
+2. Open `/login`.
+3. Select one of the demo accounts. All local demo accounts use `CivicChai!2026`.
+4. Sign in. Citizen accounts open `/citizen`; government roles open `/control-room`.
+5. Use **Sign out** before switching roles. The local session is stored under `civicchai_demo_session`.
+6. To reset the local session, sign out or remove that browser storage key from developer tools.
 
-Citizen Portal
+Each government demo role is intentionally different:
 
-## Phase 2
+| Account | Landing work surface | Demonstration focus |
+| --- | --- | --- |
+| `citizen@civicchai.local` | Citizen Portal | File, support, follow and track an issue |
+| `moderator@civicchai.local` | Moderation desk | Review a report and record a decision |
+| `operator@civicchai.local` | Department queue | Work lighting issues in PIN `401208` |
+| `supervisor@civicchai.local` | Department operations | Review department analytics and assignments |
+| `authority@civicchai.local` | Jurisdiction control room | Review cross-department operations and registry |
+| `system-admin@civicchai.local` | System administration | Review readiness and privacy requests |
+| `auditor@civicchai.local` | Audit and compliance | Inspect read-only governance records |
 
-AI Classification
+The local preview is suitable for UI and presentation walkthroughs only. It does not provide secure identity, shared data, durable issue persistence, MFA, or production authorization.
 
-## Phase 3
+### Connected Supabase demo
 
-Duplicate Detection
+1. Apply the database migrations and seed synthetic issue data.
+2. Set both public and server Supabase variables.
+3. Run `pnpm run seed:demo-users`.
+4. Sign in with a demo account.
+5. Complete TOTP enrollment for any non-citizen account.
+6. Use the authority administrator account to create or verify the demo jurisdiction registry.
+7. Use the citizen account to file a synthetic issue in PIN `401208`.
+8. Review the issue as the operator or supervisor, then inspect the resulting status and audit trail as the auditor.
 
-## Phase 4
+Do not mix local-browser and connected-mode expectations. Local demo sessions use request headers generated by the app's local demo path; connected requests use Supabase bearer tokens and protected profile records.
 
-Government Dashboard
+## Testing and validation
 
-## Phase 5
+The repository currently provides a TypeScript check and production build scripts but does not include a committed unit, integration, browser, accessibility, or security test runner.
 
-GIS
+Run the available checks from `Rodgers-SIH/`:
 
-## Phase 6
-
-Keypad Phone Agent
-
-## Phase 7
-
-WebLLM / Offline
-
-## Phase 8
-
-Government integrations
-
-## Phase 9
-
-Nationwide locality network
-
----
-
-# 🧪 Testing
-
-Test:
-
-### AI
-
-* Multilingual classification
-* Code mixing
-* Duplicate detection
-* False positives
-* False negatives
-
-### Voice
-
-* Accent variations
-* Background noise
-* Multiple languages
-* DTMF fallback
-
-### Platform
-
-* Mobile
-* Desktop
-* Slow network
-* Offline mode
-
-### Security
-
-* Authentication
-* Authorization
-* Upload attacks
-* Prompt injection
-* Vote manipulation
-
-### Accessibility
-
-* Keyboard
-* Screen reader
-* Contrast
-* Voice
-* Touch targets
-
----
-
-# 📈 KPIs
-
-CivicChai should measure:
-
-### AI
-
-* Classification accuracy
-* F1 score
-* Duplicate precision
-* Duplicate recall
-* Language accuracy
-
-### Government
-
-* Assignment time
-* Acknowledgement time
-* Resolution time
-* Overdue rate
-
-### Community
-
-* Support rate
-* Independent corroboration
-* Chai Heat growth
-* Comment engagement
-
-### Platform
-
-* Complaint completion rate
-* Voice completion rate
-* Keypad completion rate
-* Offline completion rate
-
----
-
-# 🚀 Deployment
-
-Recommended production architecture:
-
-```text
-                    USERS
-                      │
-              ┌───────┴───────┐
-              ▼               ▼
-          WEB/PWA           PHONE
-              │               │
-              └───────┬───────┘
-                      ▼
-                 CDN / WAF
-                      │
-                 API Gateway
-                      │
-              ┌───────┴────────┐
-              ▼                ▼
-          App Servers       AI Services
-              │                │
-              └───────┬────────┘
-                      ▼
-                  PostgreSQL
-                      │
-              ┌───────┴───────┐
-              ▼               ▼
-           PostGIS          Storage
+```bash
+pnpm typecheck
+pnpm build
+pnpm dev
 ```
 
-Use:
+Equivalent npm commands are available:
 
-* HTTPS
-* Secure secrets
-* Environment variables
-* Automated backups
-* Monitoring
-* Error tracking
-* Logging
-* Database migrations
-* CI/CD
-
----
-
-# 🤝 Contribution Guidelines
-
-Contributors should:
-
-1. Create a feature branch.
-2. Follow TypeScript standards.
-3. Add tests for important logic.
-4. Never commit API keys.
-5. Never commit personal citizen data.
-6. Document API changes.
-7. Document AI model changes.
-8. Follow accessibility standards.
-9. Review privacy implications before adding data collection.
-10. Submit a pull request.
-
----
-
-# ⚠️ Important Product Principles
-
-### 1. Never reject solely because AI says duplicate.
-
-### 2. Never expose private citizen information unnecessarily.
-
-### 3. Never invent government officers or laws.
-
-### 4. Never use Trust Score as citizen reputation.
-
-### 5. Never make Chai Heat equal to Priority.
-
-### 6. Never claim an offline complaint was submitted until synchronized.
-
-### 7. Never allow raw upvotes to determine government priority.
-
-### 8. Always preserve the original citizen complaint.
-
-### 9. AI should assist, not silently make irreversible administrative decisions.
-
-### 10. Government information must be source-controlled and versioned.
-
----
-
-# 🎯 CivicChai's Competitive Advantage
-
-The strongest differentiation is not:
-
-> **"We use AI."**
-
-It is:
-
-> **"We convert fragmented citizen complaints into community-supported, AI-structured civic issues."**
-
-Traditional system:
-
-```text
-100 citizens
-     ↓
-100 complaints
-     ↓
-100 tickets
+```bash
+npm run typecheck
+npm run build
+npm run dev
 ```
 
-CivicChai:
+### Manual acceptance matrix
 
-```text
-100 citizens
-     ↓
-AI similarity detection
-     ↓
-1 underlying issue
-     ↓
-100 supporting reports
-     ↓
-Community discussion
-     ↓
-High Chai Heat
-     ↓
-High civic priority
-     ↓
-Correct department
-     ↓
-Action
+Before a demo or pilot, verify at least:
+
+| Test | Expected result |
+| --- | --- |
+| Local citizen sign-in | Opens the citizen portal and does not expose staff tools |
+| Local moderator sign-in | Opens only moderation work and uses moderator copy |
+| Local operator sign-in | Opens the department queue and shows department-scoped behavior |
+| Local supervisor sign-in | Opens department operations and analytics |
+| Local authority sign-in | Opens jurisdiction operations and registry access |
+| Local system-admin sign-in | Opens system/privacy operations, not civic case queues |
+| Local auditor sign-in | Opens read-only audit/compliance work |
+| Connected staff sign-in without AAL2 | Protected APIs return an MFA-required response |
+| Citizen public issue view | Does not expose reporter identity, raw text, private evidence or exact coordinates |
+| Out-of-scope staff issue | API rejects the action even if a user manually calls the endpoint |
+| Duplicate suggestion | Suggests candidates without automatically merging or suppressing intake |
+| Resolution verification | Participating citizen can confirm or dispute a resolved issue |
+| Evidence upload | Enforces allowed media type and size; private path is not public |
+| Offline draft | Clearly remains a draft and is not reported as filed |
+| Registry record | Unverified or unsourced authority records are not presented as verified |
+| Demo seed | Creates synthetic accounts/data only and is blocked in production by default |
+
+## Troubleshooting
+
+### The app always opens the same dashboard
+
+Confirm that the selected account is actually changing and that the previous local session is cleared. Sign out before choosing another account. In connected mode, the dashboard role comes from the `profiles.role` value, not from editable Auth metadata. Run the seed script again if a profile is missing or has the wrong role.
+
+### `Supabase accepted the sign-in, but ... role profile`
+
+Check that all migrations were applied, the Auth user exists, and a matching row exists in `profiles`. Then run:
+
+```bash
+pnpm run seed:demo-users
 ```
 
----
+Use the same Supabase project URL and service-role key for the seed script and the app.
 
-# 🏆 PS2 Alignment
+### Staff API returns an MFA-required response
 
-CivicChai directly addresses the major technical requirements through:
+This is expected until the staff user enrolls in or verifies TOTP MFA. Open `/mfa`, complete the authenticator setup, and sign in again. Do not bypass the AAL2 check in application code.
 
-| Requirement             | CivicChai |
-| ----------------------- | --------- |
-| Complaint intake        | ✅         |
-| Multilingual input      | ✅         |
-| Voice input             | ✅         |
-| NLP                     | ✅         |
-| Classification          | ✅         |
-| Department mapping      | ✅         |
-| Priority                | ✅         |
-| Semantic similarity     | ✅         |
-| Duplicate detection     | ✅         |
-| Complaint clustering    | ✅         |
-| Geographic intelligence | ✅         |
-| GIS hotspots            | ✅         |
-| Tracking                | ✅         |
-| Analytics               | ✅         |
-| Citizen participation   | 🔥        |
-| Keypad accessibility    | 🔥        |
-| Civic education         | 🔥        |
-| Hybrid/local AI         | 🔥        |
+### The issue feed is empty
 
----
+An unconfigured local preview intentionally starts empty. For a connected demo, run `supabase/seed.sql` after the migrations. Confirm the selected PIN/locality and check the browser network response for `/api/public/issues`.
 
-# ☕ The CivicChai Experience
+### The map has no tiles
 
-The complete experience can be summarized as:
+Check `NEXT_PUBLIC_MAP_TILE_URL`, `NEXT_PUBLIC_MAP_ATTRIBUTION`, browser connectivity, and the tile provider's usage policy. Map tiles are an external service and are not bundled with the application.
 
-```text
-                 🇮🇳 INDIA
-                    │
-                    ▼
-              LOCAL CHARCHA
-                    │
-                    ▼
-                  ☕ CHAI
-                    │
-                    ▼
-              AI UNDERSTANDS
-                    │
-                    ▼
-           DUPLICATE CHECK
-              /         \
-            YES          NO
-             │            │
-             ▼            ▼
-          SUPPORT       CREATE
-             │            │
-             └──────┬─────┘
-                    ▼
-             COMMUNITY VOTES
-                    │
-                    ▼
-              🔥 CHAI HEAT
-                    │
-                    ▼
-             PRIORITY ENGINE
-                    │
-                    ▼
-             GOVERNMENT
-                    │
-                    ▼
-                 ACTION
-                    │
-                    ▼
-              RESOLUTION
-                    │
-                    ▼
-               CHARCHA
-                VERIFIED
+### Groq classification is unavailable
+
+This is expected when `GROQ_API_KEY` is blank or the citizen did not consent to online processing. The local classifier remains the fallback. Never move `GROQ_API_KEY` into a `NEXT_PUBLIC_` variable.
+
+### Phone IVR redirects to the web portal
+
+Verify `APP_BASE_URL`, `NEXT_PUBLIC_APP_URL`, `TWILIO_AUTH_TOKEN`, the provider webhook URL, and HTTPS deployment. The route also requires a connected database for persistent voice session state.
+
+### Evidence upload fails
+
+Confirm the user is authenticated, the file is an allowed image/video type, and it is within the configured size limit. A successful upload still requires an approved malware-scanning and retention process before production use.
+
+## Contribution and change guidelines
+
+When changing a feature:
+
+1. Read the route, component, domain helper, and relevant migration before editing.
+2. Preserve the two-portal boundary and role least privilege.
+3. Keep public projections separate from private issue/report/evidence data.
+4. Update all related surfaces: UI, API authorization, domain types, SQL migration/schema, seed data, and documentation.
+5. Keep deterministic fallbacks available when optional AI, maps, WebGPU, telephony, or network services are unavailable.
+6. Treat AI output as a suggestion. Do not silently convert a model result into a legal, identity, routing, or enforcement decision.
+7. Add auditability to staff actions and explicit error messages to user-facing failures.
+8. Keep demo and seed data synthetic and visibly labeled.
+9. Run `pnpm typecheck`; run `pnpm build` when changing routes, environment handling, or server/client boundaries.
+10. Do not commit `.env.local`, service-role keys, provider tokens, real citizen data, private evidence, or unverified official claims.
+
+### Database change rule
+
+For database-backed changes, update the next ordered migration and the consolidated `supabase/schema.sql` when the schema is intended to be reusable from a fresh project. Keep `supabase/seed.sql` safe to rerun and synthetic. Explain any data migration or backward-compatibility requirement in the pull request.
+
+### Pull request review questions
+
+- Does every new endpoint authenticate and authorize independently?
+- Is the role read from the protected profile rather than client-controlled metadata?
+- Are PIN, department, and jurisdiction scopes enforced server-side?
+- Could a public response reveal identity, raw complaint text, exact location, or private evidence?
+- Is online processing consent captured before external AI transmission?
+- Can a citizen still report a genuinely distinct issue?
+- Are duplicate, priority, trust, and Chai Heat signals kept conceptually separate?
+- Are errors visible and actionable rather than silently swallowed?
+- Does the documentation describe any new setup or operational responsibility?
+
+## Development notes
+
+Available package scripts:
+
+```bash
+pnpm dev                 # Start the Next.js development server
+pnpm build               # Build the application
+pnpm start               # Serve a production build
+pnpm typecheck            # Run TypeScript without emitting files
+pnpm seed:demo-users      # Provision demo Supabase Auth users (requires server credentials)
 ```
 
----
+The repository currently does not define an automated unit, integration, accessibility, or security test script. `typecheck` is a static type check, not a test suite. Avoid using real citizen records or official contact data in local development.
 
-# 🌏 Vision
+When changing database-backed behavior, update the ordered migration(s), consolidated `supabase/schema.sql` when appropriate, and the relevant setup documentation together. Keep seed records synthetic and visibly labeled. Do not add secrets, unverified government facts, or private citizen data to the repository.
 
-CivicChai's long-term vision is to become a **digital civic layer for India**.
+## Related documentation
 
-Not just a place where citizens complain.
-
-Not just another government portal.
-
-Not just another social network.
-
-But a platform where:
-
-> **Citizens discuss.**
-
-> **AI understands.**
-
-> **Communities prioritize.**
-
-> **Authorities act.**
-
-> **Everyone can track the outcome.**
-
----
-
-# 🫖 Final Brand Statement
-
-## **CIVICCHAI**
-
-### **India mein har ek Charcha Chai Pe hoti hai.**
-
-**Report it.**
-
-**Discuss it.**
-
-**Support it.**
-
-**Heat it up.**
-
-**Track it.**
-
-**Resolve it.**
-
-### ☕ **Charcha se Chai. Chai se Change.**
-
----
-
-> **Project Status:** Concept / Hackathon Prototype
-> **Target:** PS2
-> **Primary Users:** Citizens + Government Administrators
-> **Primary Channels:** Web + PWA + Voice + Keypad Phone
-> **Core Technologies:** NLP + Semantic Search + WebLLM + Online AI + GIS + Analytics
-> **Core Differentiator:** Community-powered duplicate consolidation and **Chai Heat-based civic prioritization**.
+- [Supabase setup and demo account guide](supabase/README.md)
+- [Environment variable template](.env.example)
+- [Master project SOP](CivicChai_PS2_Master_SOP_v2_Two_Portals.pdf)
