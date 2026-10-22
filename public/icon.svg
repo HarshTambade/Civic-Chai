@@ -1,26 +1,81 @@
-<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
-  <style>
-    @media (prefers-color-scheme: light) {
-      .background { fill: black; }
-      .foreground { fill: white; }
-    }
-    @media (prefers-color-scheme: dark) {
-      .background { fill: white; }
-      .foreground { fill: black; }
-    }
-  </style>
-  <g clip-path="url(#clip0_7960_43945)">
-    <rect class="background" width="180" height="180" rx="37" />
-    <g style="transform: scale(95%); transform-origin: center">
-      <path class="foreground"
-        d="M101.141 53H136.632C151.023 53 162.689 64.6662 162.689 79.0573V112.904H148.112V79.0573C148.112 78.7105 148.098 78.3662 148.072 78.0251L112.581 112.898C112.701 112.902 112.821 112.904 112.941 112.904H148.112V126.672H112.941C98.5504 126.672 86.5638 114.891 86.5638 100.5V66.7434H101.141V100.5C101.141 101.15 101.191 101.792 101.289 102.422L137.56 66.7816C137.255 66.7563 136.945 66.7434 136.632 66.7434H101.141V53Z" />
-      <path class="foreground"
-        d="M65.2926 124.136L14 66.7372H34.6355L64.7495 100.436V66.7372H80.1365V118.47C80.1365 126.278 70.4953 129.958 65.2926 124.136Z" />
-    </g>
-  </g>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Stylized portrait of Narendra Modi">
   <defs>
-    <clipPath id="clip0_7960_43945">
-      <rect width="180" height="180" fill="white" />
-    </clipPath>
+    <linearGradient id="background" x1="40" y1="20" x2="472" y2="500" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF4DC" />
+      <stop offset="1" stop-color="#E7C894" />
+    </linearGradient>
+    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="matrix(0 190 -190 0 256 207)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFF9EC" />
+      <stop offset="1" stop-color="#E9D5AF" />
+    </radialGradient>
+    <linearGradient id="skin" x1="185" y1="149" x2="322" y2="318" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F1BF91" />
+      <stop offset="1" stop-color="#D99161" />
+    </linearGradient>
+    <linearGradient id="beard" x1="186" y1="238" x2="319" y2="389" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FFFDF6" />
+      <stop offset="1" stop-color="#CFCCC3" />
+    </linearGradient>
+    <linearGradient id="vest" x1="178" y1="372" x2="329" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#F47A18" />
+      <stop offset="1" stop-color="#C94A0D" />
+    </linearGradient>
+    <clipPath id="frame"><rect width="512" height="512" rx="116" /></clipPath>
   </defs>
+
+  <g clip-path="url(#frame)">
+    <rect width="512" height="512" fill="url(#background)" />
+    <circle cx="256" cy="213" r="177" fill="url(#halo)" />
+    <circle cx="256" cy="213" r="177" fill="none" stroke="#FFF9EC" stroke-opacity=".7" stroke-width="3" />
+
+    <!-- shoulders and white kurta -->
+    <path d="M54 512c9-56 25-95 55-119 29-23 67-35 111-42h72c44 7 82 19 111 42 30 24 46 63 55 119H54Z" fill="#F7F2E9" />
+    <path d="m198 349 58 55 58-55 38 20-45 143H207l-45-143 36-20Z" fill="#FFFDF8" />
+    <path d="m214 373 42 40 42-40-16 139h-52l-16-139Z" fill="#E6E0D6" opacity=".72" />
+
+    <!-- saffron Nehru vest -->
+    <path d="M191 365c18 18 39 29 65 29s47-11 65-29l28 15 42 132H121l42-132 28-15Z" fill="url(#vest)" />
+    <path d="m213 375 43 38-35 99h-62l31-120 23-17Z" fill="#F5801B" />
+    <path d="m299 375-43 38 35 99h62l-31-120-23-17Z" fill="#DE5B10" />
+    <path d="m239 398 17 15 17-15-8 45h-18l-8-45Z" fill="#FFFDF8" />
+    <path d="M256 418v94" stroke="#A83D0B" stroke-opacity=".65" stroke-width="3" />
+    <circle cx="256" cy="458" r="5" fill="#7A351B" />
+    <circle cx="256" cy="489" r="5" fill="#7A351B" />
+
+    <!-- ears and face -->
+    <path d="M181 204c-18-9-27 2-23 22 3 15 12 25 26 24l-3-46Zm150 0c18-9 27 2 23 22-3 15-12 25-26 24l3-46Z" fill="#D99265" />
+    <path d="M181 173c6-46 38-75 76-75s70 29 76 75l-8 73c-4 35-22 65-46 81-14 9-30 12-44 5-32-16-53-47-57-86l-5-73Z" fill="url(#skin)" />
+    <path d="M188 190c17 9 33 12 49 10 20-2 35-10 51-10 15 0 29 4 43 12l-2-31c-6-42-33-67-72-67s-65 25-71 67l2 19Z" fill="#F4C79E" opacity=".55" />
+
+    <!-- silver hair and receding hairline -->
+    <path d="M173 190c-16-19-19-47-9-69 7-15 20-24 34-28 8-27 31-44 58-44 26 0 48 14 58 37 21 4 39 21 43 44 4 22-3 45-18 62l-8-25c-6-16-16-28-29-37-19 10-38 14-59 12-24-2-42-10-55-22-8 11-12 27-12 44l-3 26Z" fill="#F4F1E8" />
+    <path d="M167 128c5-15 16-25 31-29m145 30c-5-15-16-24-29-28" fill="none" stroke="#C8C5BD" stroke-linecap="round" stroke-width="7" />
+    <path d="M190 104c17-24 39-34 66-34 18 0 34 5 48 15-19 12-39 17-60 16-21 0-39-5-54-15Z" fill="#FFFDF6" />
+
+    <!-- brows, eyes, nose -->
+    <path d="M199 196c12-8 27-9 40-3m34 0c13-6 28-5 40 3" fill="none" stroke="#766257" stroke-linecap="round" stroke-width="5" />
+    <path d="M211 216c7-5 15-5 22 0m54 0c7-5 15-5 22 0" fill="none" stroke="#493B35" stroke-linecap="round" stroke-width="4" />
+    <path d="M257 215c-2 14-9 27-13 36-2 5 2 9 9 10" fill="none" stroke="#B87550" stroke-linecap="round" stroke-width="5" />
+    <path d="M234 265c14 6 29 6 43 0" fill="none" stroke="#B96F53" stroke-linecap="round" stroke-width="4" />
+
+    <!-- round spectacles -->
+    <g fill="none" stroke="#62554C" stroke-width="4">
+      <ellipse cx="222" cy="218" rx="28" ry="23" />
+      <ellipse cx="290" cy="218" rx="28" ry="23" />
+      <path d="M250 216c4-4 8-4 12 0M194 214l-12-5m124 5 12-5" stroke-linecap="round" />
+    </g>
+    <g fill="#FFF" opacity=".38">
+      <path d="M205 205c5-5 12-7 18-7" stroke="#FFF" stroke-linecap="round" stroke-width="3" />
+      <path d="M273 205c5-5 12-7 18-7" stroke="#FFF" stroke-linecap="round" stroke-width="3" />
+    </g>
+
+    <!-- white beard, cheeks, and moustache -->
+    <path d="M174 238c12 10 23 15 37 16 14 1 24 8 32 18 5 7 9 12 13 13 5-1 9-6 14-13 8-10 18-17 32-18 14-1 25-6 37-16 1 37-6 72-22 99-15 24-36 40-61 47-25-7-46-23-61-47-16-27-23-62-21-99Z" fill="url(#beard)" />
+    <path d="M177 270c4 39 18 70 41 89m117-89c-4 39-18 70-41 89M193 317c8 20 20 36 36 47m90-47c-8 20-20 36-36 47" fill="none" stroke="#BDBAB2" stroke-linecap="round" stroke-width="5" opacity=".65" />
+    <path d="M206 248c16-1 28 5 39 17 5 5 8 8 11 9 3-1 6-4 11-9 11-12 23-18 39-17-3 12-10 22-19 29-9 6-19 9-31 8-12 1-22-2-31-8-9-7-16-17-19-29Z" fill="#E7E3DB" />
+    <path d="M222 268c9 5 20 8 34 8s25-3 34-8" fill="none" stroke="#AAA69F" stroke-linecap="round" stroke-width="4" />
+
+    <!-- subtle outer brand frame -->
+    <rect x="9" y="9" width="494" height="494" rx="111" fill="none" stroke="#704525" stroke-opacity=".16" stroke-width="8" />
+  </g>
 </svg>

@@ -13,6 +13,15 @@ export const metadata: Metadata = {
     'CivicChai turns everyday civic problems into community discussions. Report karo, charcha karo, vote karo — aur dekho tumhari awaaz kahan tak pahunchti hai.',
   generator: 'v0.app',
   manifest: '/manifest.webmanifest',
+  icons: {
+    icon: [
+      { url: '/icon.svg', type: 'image/svg+xml' },
+      { url: '/icon-192.png', sizes: '192x192', type: 'image/png' },
+      { url: '/icon-light-32x32.png', sizes: '32x32', type: 'image/png', media: '(prefers-color-scheme: light)' },
+      { url: '/icon-dark-32x32.png', sizes: '32x32', type: 'image/png', media: '(prefers-color-scheme: dark)' },
+    ],
+    apple: [{ url: '/apple-icon.png', sizes: '180x180', type: 'image/png' }],
+  },
   appleWebApp: {
     capable: true,
     title: 'CivicChai',
