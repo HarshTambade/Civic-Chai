@@ -13,6 +13,7 @@ export function MfaPage() {
   const supabase = useMemo(() => getSupabaseClient(), [])
   const [factorId, setFactorId] = useState('')
   const [challengeId, setChallengeId] = useState('')
+  const [hasVerifiedFactor, setHasVerifiedFactor] = useState(false)
   const [qrCode, setQrCode] = useState('')
   const [secret, setSecret] = useState('')
   const [code, setCode] = useState('')
@@ -45,7 +46,11 @@ export function MfaPage() {
         if (verified) {
           const { data: challenge, error: challengeError } = await client.auth.mfa.challenge({ factorId: verified.id })
           if (challengeError) throw challengeError
-          if (!cancelled) { setFactorId(verified.id); setChallengeId(challenge.id) }
+          if (!cancelled) {
+            setHasVerifiedFactor(true)
+            setFactorId(verified.id)
+            setChallengeId(challenge.id)
+          }
           return
         }
 
@@ -61,8 +66,8 @@ export function MfaPage() {
         if (!cancelled) {
           setFactorId(enrollment.id)
           setChallengeId(challenge.id)
-          setQrCode(enrollment.totp.qr_code)
-          setSecret(enrollment.totp.secret)
+          setQrCode(enrollment.totp?.qr_code ?? '')
+          setSecret(enrollment.totp?.secret ?? '')
         }
       } catch (reason) {
         if (!cancelled) setError(reason instanceof Error ? reason.message : 'Unable to prepare staff multi-factor authentication.')
@@ -99,7 +104,8 @@ export function MfaPage() {
         <div className="mb-5 flex items-center gap-3"><Logo showWordmark={false} /><div><p className="font-display text-xl font-extrabold">Staff account protection</p><p className="text-xs text-chai">Multi-factor authentication</p></div></div>
         <p className="text-sm leading-relaxed text-sidebar-foreground/65">Administrative access requires a time-based one-time code from an authenticator app. CivicChai checks this requirement on protected API requests as well as in the dashboard.</p>
         {loading ? <p role="status" className="mt-5 text-sm text-sidebar-foreground/60">Preparing your secure sign-in…</p> : <>
-          {qrCode && <div className="mt-5 rounded-xl bg-white p-4 text-center"><img src={qrSource} alt="Scan this one-time code with your authenticator app" className="mx-auto h-48 w-48" /><p className="mt-2 text-xs text-charcoal/65">Scan this QR code in your authenticator app.</p><p className="mt-2 break-all font-mono text-xs text-charcoal">{secret}</p></div>}
+          {hasVerifiedFactor && <p className="mt-5 rounded-xl border border-sidebar-border bg-sidebar px-4 py-3 text-sm leading-relaxed text-sidebar-foreground/70">This account already has an authenticator enrolled. Open that app and enter its current six-digit code. The setup QR is only available during enrollment; if you no longer have access to the enrolled app, contact your Supabase project administrator to reset this account’s factor.</p>}
+          {(qrCode || secret) && <div className="mt-5 rounded-xl bg-white p-4 text-center">{qrCode ? <><img src={qrSource} alt="Scan this one-time code with your authenticator app" className="mx-auto h-48 w-48" /><p className="mt-2 text-xs text-charcoal/65">Scan this QR code in your authenticator app.</p></> : <p className="text-sm text-charcoal/70">The QR image is unavailable. Enter this setup key manually in your authenticator app.</p>}{secret && <><p className="mt-2 text-xs text-charcoal/65">Setup key</p><p className="break-all font-mono text-xs text-charcoal">{secret}</p></>}</div>}
           {error && <p role="alert" className="mt-4 rounded-lg bg-heat/15 p-3 text-sm text-heat">{error}</p>}
           {factorId && challengeId && <form onSubmit={verify} className="mt-5 space-y-3">
             <label htmlFor="mfa-code" className="block text-xs font-semibold text-sidebar-foreground/75">Authenticator code</label>

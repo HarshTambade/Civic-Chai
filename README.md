@@ -673,6 +673,10 @@ Use the same Supabase project URL and service-role key for the seed script and t
 
 This is expected until the staff user enrolls in or verifies TOTP MFA. Open `/mfa`, complete the authenticator setup, and sign in again. Do not bypass the AAL2 check in application code.
 
+### Moderator sign-in shows a code field but no setup QR
+
+The moderator account already has a verified TOTP factor. Open the authenticator app previously enrolled for that account and enter its current six-digit code. Supabase only returns the setup QR and secret when enrolling a new factor; rerunning `pnpm run seed:demo-users` does not clear existing MFA factors. If the enrolled app is no longer accessible, have the Supabase project administrator reset that account's factor through the approved account-recovery process.
+
 ### The issue feed is empty
 
 An unconfigured local preview intentionally starts empty. For a connected demo, run `supabase/seed.sql` after the migrations. Confirm the selected PIN/locality and check the browser network response for `/api/public/issues`.
