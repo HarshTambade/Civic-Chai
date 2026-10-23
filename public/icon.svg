@@ -1,81 +1,89 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Stylized portrait of Narendra Modi">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Cockroach Janta Party emblem">
   <defs>
-    <linearGradient id="background" x1="40" y1="20" x2="472" y2="500" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFF4DC" />
-      <stop offset="1" stop-color="#E7C894" />
+    <clipPath id="seal">
+      <circle cx="256" cy="256" r="252" />
+    </clipPath>
+    <linearGradient id="shell" x1="224" y1="123" x2="288" y2="222" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#8a4218" />
+      <stop offset=".48" stop-color="#4d2414" />
+      <stop offset="1" stop-color="#a65320" />
     </linearGradient>
-    <radialGradient id="halo" cx="0" cy="0" r="1" gradientTransform="matrix(0 190 -190 0 256 207)" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFF9EC" />
-      <stop offset="1" stop-color="#E9D5AF" />
-    </radialGradient>
-    <linearGradient id="skin" x1="185" y1="149" x2="322" y2="318" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F1BF91" />
-      <stop offset="1" stop-color="#D99161" />
+    <linearGradient id="wing" x1="239" y1="154" x2="275" y2="211" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#be6c2b" />
+      <stop offset=".48" stop-color="#713613" />
+      <stop offset="1" stop-color="#392013" />
     </linearGradient>
-    <linearGradient id="beard" x1="186" y1="238" x2="319" y2="389" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#FFFDF6" />
-      <stop offset="1" stop-color="#CFCCC3" />
+    <linearGradient id="podium" x1="190" y1="226" x2="326" y2="279" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#9a5525" />
+      <stop offset=".5" stop-color="#4a2815" />
+      <stop offset="1" stop-color="#9a5525" />
     </linearGradient>
-    <linearGradient id="vest" x1="178" y1="372" x2="329" y2="512" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#F47A18" />
-      <stop offset="1" stop-color="#C94A0D" />
-    </linearGradient>
-    <clipPath id="frame"><rect width="512" height="512" rx="116" /></clipPath>
   </defs>
 
-  <g clip-path="url(#frame)">
-    <rect width="512" height="512" fill="url(#background)" />
-    <circle cx="256" cy="213" r="177" fill="url(#halo)" />
-    <circle cx="256" cy="213" r="177" fill="none" stroke="#FFF9EC" stroke-opacity=".7" stroke-width="3" />
+  <g clip-path="url(#seal)">
+    <rect width="512" height="512" fill="#fff8e9" />
+    <rect width="512" height="65" fill="#e95a08" />
+    <rect y="55" width="512" height="30" fill="#fff8e9" />
+    <rect y="449" width="512" height="63" fill="#147033" />
 
-    <!-- shoulders and white kurta -->
-    <path d="M54 512c9-56 25-95 55-119 29-23 67-35 111-42h72c44 7 82 19 111 42 30 24 46 63 55 119H54Z" fill="#F7F2E9" />
-    <path d="m198 349 58 55 58-55 38 20-45 143H207l-45-143 36-20Z" fill="#FFFDF8" />
-    <path d="m214 373 42 40 42-40-16 139h-52l-16-139Z" fill="#E6E0D6" opacity=".72" />
+    <!-- The round tricolor crest behind the cockroach. -->
+    <circle cx="256" cy="169" r="111" fill="#fff8e9" stroke="#e8782b" stroke-width="5" />
+    <path d="M150 169a106 106 0 0 1 212 0" fill="none" stroke="#e8782b" stroke-width="4" />
+    <path d="M152 169a104 104 0 0 0 208 0" fill="none" stroke="#176e36" stroke-width="5" />
+    <circle cx="256" cy="169" r="94" fill="#f7f5e9" stroke="#d6cba8" stroke-width="2" />
 
-    <!-- saffron Nehru vest -->
-    <path d="M191 365c18 18 39 29 65 29s47-11 65-29l28 15 42 132H121l42-132 28-15Z" fill="url(#vest)" />
-    <path d="m213 375 43 38-35 99h-62l31-120 23-17Z" fill="#F5801B" />
-    <path d="m299 375-43 38 35 99h62l-31-120-23-17Z" fill="#DE5B10" />
-    <path d="m239 398 17 15 17-15-8 45h-18l-8-45Z" fill="#FFFDF8" />
-    <path d="M256 418v94" stroke="#A83D0B" stroke-opacity=".65" stroke-width="3" />
-    <circle cx="256" cy="458" r="5" fill="#7A351B" />
-    <circle cx="256" cy="489" r="5" fill="#7A351B" />
-
-    <!-- ears and face -->
-    <path d="M181 204c-18-9-27 2-23 22 3 15 12 25 26 24l-3-46Zm150 0c18-9 27 2 23 22-3 15-12 25-26 24l3-46Z" fill="#D99265" />
-    <path d="M181 173c6-46 38-75 76-75s70 29 76 75l-8 73c-4 35-22 65-46 81-14 9-30 12-44 5-32-16-53-47-57-86l-5-73Z" fill="url(#skin)" />
-    <path d="M188 190c17 9 33 12 49 10 20-2 35-10 51-10 15 0 29 4 43 12l-2-31c-6-42-33-67-72-67s-65 25-71 67l2 19Z" fill="#F4C79E" opacity=".55" />
-
-    <!-- silver hair and receding hairline -->
-    <path d="M173 190c-16-19-19-47-9-69 7-15 20-24 34-28 8-27 31-44 58-44 26 0 48 14 58 37 21 4 39 21 43 44 4 22-3 45-18 62l-8-25c-6-16-16-28-29-37-19 10-38 14-59 12-24-2-42-10-55-22-8 11-12 27-12 44l-3 26Z" fill="#F4F1E8" />
-    <path d="M167 128c5-15 16-25 31-29m145 30c-5-15-16-24-29-28" fill="none" stroke="#C8C5BD" stroke-linecap="round" stroke-width="7" />
-    <path d="M190 104c17-24 39-34 66-34 18 0 34 5 48 15-19 12-39 17-60 16-21 0-39-5-54-15Z" fill="#FFFDF6" />
-
-    <!-- brows, eyes, nose -->
-    <path d="M199 196c12-8 27-9 40-3m34 0c13-6 28-5 40 3" fill="none" stroke="#766257" stroke-linecap="round" stroke-width="5" />
-    <path d="M211 216c7-5 15-5 22 0m54 0c7-5 15-5 22 0" fill="none" stroke="#493B35" stroke-linecap="round" stroke-width="4" />
-    <path d="M257 215c-2 14-9 27-13 36-2 5 2 9 9 10" fill="none" stroke="#B87550" stroke-linecap="round" stroke-width="5" />
-    <path d="M234 265c14 6 29 6 43 0" fill="none" stroke="#B96F53" stroke-linecap="round" stroke-width="4" />
-
-    <!-- round spectacles -->
-    <g fill="none" stroke="#62554C" stroke-width="4">
-      <ellipse cx="222" cy="218" rx="28" ry="23" />
-      <ellipse cx="290" cy="218" rx="28" ry="23" />
-      <path d="M250 216c4-4 8-4 12 0M194 214l-12-5m124 5 12-5" stroke-linecap="round" />
-    </g>
-    <g fill="#FFF" opacity=".38">
-      <path d="M205 205c5-5 12-7 18-7" stroke="#FFF" stroke-linecap="round" stroke-width="3" />
-      <path d="M273 205c5-5 12-7 18-7" stroke="#FFF" stroke-linecap="round" stroke-width="3" />
+    <!-- Rally crowd and hand-held placards. -->
+    <g fill="#21180f" stroke="#21180f" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M0 248c12-8 19-13 31-13 10 0 15 7 24 5 12-3 15-12 27-11 10 1 14 10 25 9 10-1 15-8 25-6 12 2 17 13 27 12 9-1 17-7 27-4l15 28H0Z" />
+      <path d="M311 269c11-19 20-30 34-31 8-1 14 7 23 6 10-1 13-12 24-12 9 0 12 9 22 9 11 0 17-8 28-7 10 1 13 9 23 8 11-2 16-9 27-7 8 1 14 6 20 11v31H311Z" />
+      <circle cx="18" cy="226" r="7" /><circle cx="48" cy="222" r="7" />
+      <circle cx="77" cy="224" r="7" /><circle cx="108" cy="222" r="7" />
+      <circle cx="137" cy="225" r="7" /><circle cx="165" cy="224" r="7" />
+      <circle cx="342" cy="222" r="7" /><circle cx="371" cy="219" r="7" />
+      <circle cx="401" cy="220" r="7" /><circle cx="432" cy="219" r="7" />
+      <circle cx="462" cy="221" r="7" /><circle cx="492" cy="225" r="7" />
+      <path d="M18 236v37M48 232v39M77 234v39M108 232v43M137 235v39M165 234v37" fill="none" stroke-width="5" />
+      <path d="M342 232v42M371 229v43M401 230v44M432 229v43M462 231v43M492 235v40" fill="none" stroke-width="5" />
+      <path d="M7 207h22v20H7zM37 201h21v20H37zM67 205h20v18H67zM98 199h22v21H98zM127 204h21v19h-21zM155 200h22v22h-22z" />
+      <path d="M331 200h22v20h-22zM361 195h21v21h-21zM390 199h22v20h-22zM421 193h22v23h-22zM451 198h21v21h-21zM482 203h22v20h-22z" />
+      <path d="M8 253 1 233m55 17 11-20m47 18 11-18m54 16 12-18M326 258l-8-22m61 20 10-23m47 22 12-24m48 23 8-19" fill="none" stroke-width="6" />
     </g>
 
-    <!-- white beard, cheeks, and moustache -->
-    <path d="M174 238c12 10 23 15 37 16 14 1 24 8 32 18 5 7 9 12 13 13 5-1 9-6 14-13 8-10 18-17 32-18 14-1 25-6 37-16 1 37-6 72-22 99-15 24-36 40-61 47-25-7-46-23-61-47-16-27-23-62-21-99Z" fill="url(#beard)" />
-    <path d="M177 270c4 39 18 70 41 89m117-89c-4 39-18 70-41 89M193 317c8 20 20 36 36 47m90-47c-8 20-20 36-36 47" fill="none" stroke="#BDBAB2" stroke-linecap="round" stroke-width="5" opacity=".65" />
-    <path d="M206 248c16-1 28 5 39 17 5 5 8 8 11 9 3-1 6-4 11-9 11-12 23-18 39-17-3 12-10 22-19 29-9 6-19 9-31 8-12 1-22-2-31-8-9-7-16-17-19-29Z" fill="#E7E3DB" />
-    <path d="M222 268c9 5 20 8 34 8s25-3 34-8" fill="none" stroke="#AAA69F" stroke-linecap="round" stroke-width="4" />
+    <!-- Antennae, legs, and mandibles. -->
+    <g fill="none" stroke="#23170f" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M246 124c-12-27-24-43-45-53-6-3-11-4-15-4M266 124c12-27 24-43 45-53 6-3 11-4 15-4" stroke-width="5" />
+      <path d="M238 147 215 150l-28 27-16 27M238 164l-28 14-18 29-7 17M238 178l-21 19 2 26M274 147l23 3 28 27 16 27M274 164l28 14 18 29 7 17M274 178l21 19-2 26" stroke-width="7" />
+      <path d="m248 131-9 9m25-9 9 9" stroke-width="3" />
+    </g>
 
-    <!-- subtle outer brand frame -->
-    <rect x="9" y="9" width="494" height="494" rx="111" fill="none" stroke="#704525" stroke-opacity=".16" stroke-width="8" />
+    <!-- Cockroach head and plated body. -->
+    <ellipse cx="256" cy="129" rx="19" ry="15" fill="#27180f" />
+    <path d="M241 128c4-8 10-12 16-12 7 0 12 4 15 12-3 9-8 14-16 14-7 0-12-5-15-14Z" fill="#a14d1c" />
+    <circle cx="249" cy="127" r="2.5" fill="#130d09" /><circle cx="263" cy="127" r="2.5" fill="#130d09" />
+    <path d="M244 143c4-6 8-9 12-9s9 3 12 9l6 18-6 14h-24l-6-14Z" fill="url(#shell)" stroke="#311b10" stroke-width="3" />
+    <path d="M237 166c2-9 8-14 19-14s17 5 19 14v37c-8 11-31 12-38 0Z" fill="url(#wing)" stroke="#321b10" stroke-width="3" />
+    <path d="M256 155v49M240 166c8 6 24 6 32 0M239 179c9 6 25 6 34 0M240 192c8 6 24 6 32 0" fill="none" stroke="#d18a45" stroke-opacity=".65" stroke-width="3" />
+    <path d="M242 147c4 5 9 7 14 7s10-2 14-7" fill="none" stroke="#df9b54" stroke-width="2" />
+
+    <!-- Pedestal. -->
+    <path d="M191 229h130l-10 33c-3 9-10 14-20 14h-70c-10 0-17-5-20-14Z" fill="url(#podium)" stroke="#442313" stroke-width="3" />
+    <path d="M183 225c0-5 5-9 12-9h122c7 0 12 4 12 9s-5 9-12 9H195c-7 0-12-4-12-9Z" fill="#553018" stroke="#311b10" stroke-width="3" />
+    <path d="M193 238h126" stroke="#c07a37" stroke-opacity=".7" stroke-width="3" />
+
+    <!-- Saffron and green movement strokes framing the name. -->
+    <path d="M7 279c57-18 113-16 177 2l-14 10c-60-15-113-16-162-1Z" fill="#e95a08" />
+    <path d="M7 290c60-16 113-13 170 2l-15 8c-53-12-102-13-155 1Z" fill="#176e36" />
+    <path d="M505 279c-57-18-113-16-177 2l14 10c60-15 113-16 162-1Z" fill="#e95a08" />
+    <path d="M505 290c-60-16-113-13-170 2l15 8c53-12 102-13 155 1Z" fill="#176e36" />
+
+    <!-- Party name. -->
+    <text x="256" y="374" text-anchor="middle" fill="#17110e" font-family="Arial Narrow, Impact, sans-serif" font-size="59" font-weight="900" letter-spacing="-1.5" textLength="390" lengthAdjust="spacingAndGlyphs">COCKROACH</text>
+    <path d="M88 391h29m-29 10h29m278-10h29m-29 10h29" stroke="#d87542" stroke-width="3" />
+    <path d="M121 395h270" stroke="#176e36" stroke-width="2" />
+    <text x="256" y="426" text-anchor="middle" fill="#176e36" font-family="Arial Narrow, Arial, sans-serif" font-size="34" font-weight="900" letter-spacing="1.5" textLength="270" lengthAdjust="spacingAndGlyphs">JANTA PARTY</text>
+    <path d="M104 436c45 31 99 47 152 47s107-16 152-47c-19 39-73 65-152 65s-133-26-152-65Z" fill="#176e36" />
+    <path d="M132 435c39 22 80 33 124 33s85-11 124-33l-8 9c-36 18-74 27-116 27s-80-9-116-27Z" fill="#e95a08" />
+
+    <circle cx="256" cy="256" r="249" fill="none" stroke="#fffdf6" stroke-width="6" />
   </g>
 </svg>

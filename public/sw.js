@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'civicchai-v6'
+const CACHE_VERSION = 'civicchai-v7'
 const SHELL_CACHE = `${CACHE_VERSION}-shell`
 const APP_SHELL = [
   '/',
