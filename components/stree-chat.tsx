@@ -47,7 +47,7 @@ function buildReply(input: string) {
 }
 
 export function StreeChat() {
-  const [open, setOpen] = useState(true)
+  const [open, setOpen] = useState(false)
   const [messages, setMessages] = useState<ChatMessage[]>([
     {
       id: 1,
@@ -59,7 +59,7 @@ export function StreeChat() {
   const [isOffline, setIsOffline] = useState(false)
   const [preferOfflineModel, setPreferOfflineModel] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  const [webllmStatus, setWebllmStatus] = useState<'idle' | 'ready' | 'fallback'>('idle')
+  const [webllmStatus, setWebllmStatus] = useState<'idle' | 'loading' | 'ready' | 'fallback'>('idle')
   const engineRef = useRef<any>(null)
   const scrollRef = useRef<HTMLDivElement | null>(null)
 
@@ -79,12 +79,13 @@ export function StreeChat() {
   }, [])
 
   useEffect(() => {
-    let cancelled = false
+    if (!preferOfflineModel || webllmStatus !== 'idle') return
 
     async function initWebllm() {
+      setWebllmStatus('loading')
       if (typeof window === 'undefined') return
       if (!('gpu' in navigator) || !navigator.gpu) {
-        if (!cancelled) setWebllmStatus('fallback')
+        setWebllmStatus('fallback')
         return
       }
 
@@ -92,29 +93,21 @@ export function StreeChat() {
         const engineModule = await import('@mlc-ai/web-llm')
         const { CreateMLCEngine } = engineModule
 
-        if (cancelled) return
-
         const engine = await CreateMLCEngine('Llama-3.2-1B-Instruct-q4f16_1-MLC', {
           initProgressCallback: () => undefined,
         })
 
-        if (!cancelled) {
-          engineRef.current = engine
-          setWebllmStatus('ready')
-          ;(engine as { setLogLevel?: (level: string) => void })?.setLogLevel?.('INFO')
-        }
+        engineRef.current = engine
+        setWebllmStatus('ready')
+        ;(engine as { setLogLevel?: (level: string) => void })?.setLogLevel?.('INFO')
       } catch (error) {
         console.warn('WebLLM failed to initialize:', error)
-        if (!cancelled) setWebllmStatus('fallback')
+        setWebllmStatus('fallback')
       }
     }
 
     initWebllm()
-
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  }, [preferOfflineModel])
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' })
@@ -123,10 +116,10 @@ export function StreeChat() {
   const isUsingOfflineModel = preferOfflineModel || isOffline || webllmStatus === 'fallback'
 
   const statusText = useMemo(() => {
-    if (preferOfflineModel) return 'Offline model active'
-    if (webllmStatus === 'ready') return 'Local AI ready'
-    if (webllmStatus === 'fallback') return 'Offline guidance ready'
-    return isOffline ? 'Offline mode' : 'Online mode'
+    if (preferOfflineModel && webllmStatus === 'loading') return 'Loading on-device AI'
+    if (preferOfflineModel && webllmStatus === 'ready') return 'On-device AI active'
+    if (preferOfflineModel || webllmStatus === 'fallback') return 'Local guidance ready'
+    return isOffline ? 'Offline guidance ready' : 'Local guidance ready'
   }, [isOffline, preferOfflineModel, webllmStatus])
 
   async function handleSend() {
@@ -141,7 +134,7 @@ export function StreeChat() {
     try {
       let response = buildReply(trimmed)
 
-      if (!isUsingOfflineModel && webllmStatus === 'ready' && engineRef.current && typeof window !== 'undefined') {
+      if (preferOfflineModel && webllmStatus === 'ready' && engineRef.current && typeof window !== 'undefined') {
         try {
           const result = await engineRef.current.chat.completions.create({
             messages: [
@@ -243,8 +236,15 @@ export function StreeChat() {
                     : 'border-border bg-card text-charcoal/70 hover:border-chai/40 hover:text-chai'
                 }`}
               >
-                {preferOfflineModel ? 'Offline model active' : 'Switch to offline model'}
+                {preferOfflineModel
+                  ? webllmStatus === 'loading'
+                    ? 'Loading on-device AI…'
+                    : webllmStatus === 'ready'
+                      ? 'On-device AI active'
+                      : 'Local guidance active'
+                  : 'Enable on-device AI'}
               </button>
+              {!preferOfflineModel && <p className="mt-1 text-center text-[10px] text-charcoal/50">Loads the optional language model only after you enable it.</p>}
             </div>
             <div className="flex gap-2">
               <input

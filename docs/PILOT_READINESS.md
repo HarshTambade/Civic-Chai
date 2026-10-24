@@ -17,11 +17,11 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 | PWA and offline | Installable PWA, app shell, offline report drafts with explicit consent, pending-sync state, and public read cache. Writes are not queued to an authority without later authenticated sync. | Staff operations are online-only. Citizens must understand that an offline draft is not yet filed. |
 | Moderation and recourse | Content reports, review decisions and appeals have role-scoped workflows; public display can be hidden while preserving the report record. | Define moderator coverage, response targets and appeal handling for the pilot. |
 | Data rights | Access, correction, erasure and grievance requests are captured, visible to system administrators and have an outcome record. | Fulfillment is a human compliance action; the app does not automatically export or erase records. Approve identity checks and retention rules, and document the action before marking fulfilled. |
-| Platform security | Production demo identities are disabled; no-Supabase production requests fail closed; shared rate limits fail closed; staff MFA is enforced in API authorization; sensitive issue updates use a service-only transaction; evidence type signatures and account ownership are checked; standard security headers are set. | Malware scanning, backups/restore drills, monitoring, incident response and an independent penetration/security review require operational services and owners. |
+| Platform security | Production demo identities are disabled; no-Supabase production requests fail closed; shared rate limits fail closed; staff MFA is enforced in API authorization and database RLS; sensitive issue updates use a service-only transaction; production intake and uploads are gated; evidence type signatures and account ownership are checked; standard security headers are set. | Malware scanning, backups/restore drills, monitoring, incident response and an independent penetration/security review require operational services and owners. |
 
 ## Required before real pilot submissions
 
-1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql` and `003_pilot_hardening.sql` in order (or import the complete `supabase/schema.sql` into a new project).
+1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql` and `004_staff_mfa_rls.sql` in order (or import the complete `supabase/schema.sql` into a new project).
 2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready and `/api/system/health` reports the database connected.
 3. Rotate any Supabase service-role or Groq credentials that were shared outside the secret manager, and store the replacement only in deployment secrets. Never commit `.env.local`.
 4. Replace shared demo passwords, remove unused demos, provision individual staff accounts, set jurisdiction/department scope, and enroll each staff account in TOTP MFA. Use demo accounts only in a controlled pilot environment.
@@ -34,8 +34,10 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 
 Do not represent CivicChai as a statutory grievance, appeal or emergency channel unless the responsible authority has formally approved that use and its integrations. Provide the authority's existing emergency and grievance channels in the pilot notice.
 
+Production issue and phone intake stay disabled unless `CIVICCHAI_PUBLIC_INTAKE_ENABLED=true`. Evidence uploads stay disabled unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable them only after the approved file-scanning or handling workflow is operating.
+
 ## Local verification performed for this audit
 
-- TypeScript project check: `pnpm run typecheck`.
-- Production build: `pnpm run build --webpack` (run during this audit; result recorded in the handoff).
+- TypeScript project check: `npm run typecheck -- --incremental false`.
+- Production build: `npm run build -- --webpack`.
 - The repository does not currently include an automated unit, integration, accessibility or security test suite. Passing a build does not replace the acceptance session above.

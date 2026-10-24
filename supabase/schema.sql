@@ -390,7 +390,13 @@ create index if not exists idx_notifications_user_time on public.notifications(u
 
 create or replace function public.current_app_role()
 returns text language sql stable security definer set search_path = public
-as $$ select role from public.profiles where id = auth.uid() $$;
+as $$
+  select case
+    when p.role = 'citizen' or coalesce(auth.jwt()->>'aal', '') = 'aal2' then p.role
+    else null
+  end
+  from public.profiles p where p.id = auth.uid()
+$$;
 
 create or replace function public.issue_is_in_scope(p_issue_id uuid)
 returns boolean language plpgsql stable security definer set search_path = public
@@ -398,6 +404,7 @@ as $$
 declare r text; p_pin text; p_department text; i_pin text; i_department text; i_jurisdiction uuid; p_jurisdiction uuid;
 begin
   select role, pin, department, jurisdiction_id into r, p_pin, p_department, p_jurisdiction from public.profiles where id = auth.uid();
+  if r is distinct from 'citizen' and coalesce(auth.jwt()->>'aal', '') <> 'aal2' then return false; end if;
   select pin, department, jurisdiction_id into i_pin, i_department, i_jurisdiction from public.issues where id = p_issue_id;
   if not found then return false; end if;
   if r = 'authority_admin' then return (p_jurisdiction is not null and p_jurisdiction = i_jurisdiction) or (p_pin is not null and p_pin = i_pin); end if;
@@ -590,7 +597,7 @@ end $$;
 
 create policy "profile owner read" on public.profiles for select to authenticated using (id = auth.uid());
 create policy "profile owner update" on public.profiles for update to authenticated using (id = auth.uid()) with check (id = auth.uid());
-create policy "jurisdiction public verified" on public.jurisdictions for select using (is_verified or auth.uid() is not null);
+create policy "jurisdiction public verified" on public.jurisdictions for select using (is_verified or public.can_manage_registry(pin));
 create policy "categories public read" on public.categories for select using (true);
 create policy "departments public read" on public.departments for select using (is_active);
 create policy "hub public verified" on public.authority_hubs for select using (is_verified or public.can_manage_registry(pin));
@@ -722,7 +729,7 @@ $$;
 revoke all on function public.apply_issue_action(uuid,uuid,text,text,text,text,text) from public, anon, authenticated;
 grant execute on function public.apply_issue_action(uuid,uuid,text,text,text,text,text) to service_role;
 create or replace function public.civicchai_schema_version()
-returns integer language sql immutable security definer set search_path = public as $$ select 3 $$;
+returns integer language sql immutable security definer set search_path = public as $$ select 4 $$;
 revoke all on function public.civicchai_schema_version() from public, anon, authenticated;
 grant execute on function public.civicchai_schema_version() to service_role;
 

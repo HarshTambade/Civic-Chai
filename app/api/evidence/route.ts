@@ -2,10 +2,12 @@ import { NextResponse } from 'next/server'
 import { getRequestContext } from '@/lib/api-auth'
 import { hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
 import { consumeRateLimit } from '@/lib/rate-limit'
+import { areEvidenceUploadsEnabled } from '@/lib/deployment'
 
 export const runtime = 'nodejs'
 
 export async function POST(request: Request) {
+  if (!areEvidenceUploadsEnabled() && !isLocalDemoModeEnabled()) return NextResponse.json({ error: 'Evidence uploads are not enabled for this deployment.' }, { status: 503 })
   const rateLimit = await consumeRateLimit(request, 'evidence-upload', 20, 3600)
   if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
   if (!rateLimit) return NextResponse.json({ error: 'Too many evidence uploads from this connection. Try again later.' }, { status: 429 })

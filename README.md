@@ -239,7 +239,7 @@ flowchart TD
 
 - The browser uses the Supabase publishable key for Auth and approved client reads. The server-only service-role key is never exposed to browser code.
 - API routes validate the current Supabase user and read the protected profile for role and scope. Non-citizen actions require an MFA-authenticated Supabase session (AAL2).
-- Sensitive issue operations use server-side workflows and database functions. Migration `003_pilot_hardening.sql` restricts direct staff table writes and records issue actions/audit events transactionally.
+- Sensitive issue operations use server-side workflows and database functions. Migrations `003_pilot_hardening.sql` and `004_staff_mfa_rls.sql` restrict direct staff table writes, require staff MFA in database policies, and record issue actions/audit events transactionally.
 - Public feeds use safe columns and a server-side public projection. Exact coordinates, original report text, reporter IDs, and private evidence paths are excluded from public responses.
 - Rate-limited routes use a shared database-backed limiter in connected deployments. If shared request protection is unavailable, protected operations fail closed.
 - The browser-only local preview is deliberately not a production identity system or durable database.
@@ -252,7 +252,7 @@ The local classifier in `lib/ai.ts` uses a small keyword taxonomy for Public Lig
 
 The optional Groq path is server-side and has a configured model name (`GROQ_MODEL`, default `llama-3.3-70b-versatile`). It is used only when `onlineConsent` is true. The result is constrained to the known category list and falls back to local rules on request or parsing failure. This path is not retrieval-augmented and does not supply verified government facts.
 
-The STREE chat in `components/stree-chat.tsx` is a separate feature. It attempts to initialize a small WebLLM model in a browser with WebGPU support; when that is unavailable or fails, it uses local pattern-based civic guidance. It does not call the Groq classification endpoint.
+The STREE chat in `components/stree-chat.tsx` is a separate feature. It uses local pattern-based civic guidance by default; a visitor can opt into downloading and running the optional WebLLM model on a WebGPU-capable browser. It does not call the Groq classification endpoint.
 
 ### Duplicate suggestions
 
@@ -295,7 +295,7 @@ The report trust score combines evidence, whether a location was supplied, corro
 The code includes these safeguards:
 
 - Supabase Auth and protected profile-based role assignment in connected mode.
-- TOTP MFA for all staff roles and scoped authorization in API routes.
+- TOTP MFA for all staff roles, enforced in both API authorization and database row-level policies.
 - RLS policies and restricted column grants in the Supabase migrations.
 - Server-only service credentials for privileged operations; do not add a `NEXT_PUBLIC_` prefix to secret keys.
 - Private evidence storage scoped to the uploading account and authorized issue staff.
@@ -305,6 +305,7 @@ The code includes these safeguards:
 - HTTPS-only source URL validation for registry records; only `.gov.in` or `.nic.in` sources may be marked verified.
 - Security headers configured in `next.config.mjs`.
 - Twilio request-signature validation for the IVR webhook.
+- Production issue and phone intake stay disabled until explicitly approved; evidence uploads stay disabled until the file-handling workflow is ready.
 
 Operational protections still need owners and services before a real pilot: malware scanning, backups and restore drills, monitoring and alerting, incident response, privacy/retention policy, authority-approved response procedures, and independent security review. The detailed pilot requirements are summarized in this README and in [Supabase setup](supabase/README.md).
 
@@ -367,6 +368,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    - `supabase/migrations/001_init.sql`
    - `supabase/migrations/002_civicchai_platform.sql`
    - `supabase/migrations/003_pilot_hardening.sql`
+   - `supabase/migrations/004_staff_mfa_rls.sql`
 
    `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
 3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
@@ -415,6 +417,8 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `NEXT_PUBLIC_MAP_TILE_URL` | Map tiles | Tile URL template; OpenStreetMap is shown in the example. |
 | `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
+| `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Production issue and phone intake | Set to `true` only after the authority and pilot owner approve the deployment and complete the readiness checklist. Production defaults to disabled. |
+| `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED` | Production evidence uploads | Set to `true` only after an approved malware scanning or file-handling workflow is active. Production defaults to disabled. |
 | `ALLOW_DEMO_USER_SEED` | Exceptional production seeding only | Must be `1` to override the script's production guard. Avoid enabling in public environments. |
 
 Do not commit `.env.local`, service-role keys, provider tokens, or real citizen data.
@@ -494,6 +498,7 @@ An issue stores a public-facing document ID and description, original/normalized
 - `supabase/migrations/001_init.sql`: core identity, taxonomy, issues, comments, supports, and basic audit schema.
 - `supabase/migrations/002_civicchai_platform.sql`: role/scope helpers, platform entities, RLS, storage, scoring and workflow functions.
 - `supabase/migrations/003_pilot_hardening.sql`: hardened server-side issue actions, role transition checks, geographic scope fields, and schema version marker.
+- `supabase/migrations/004_staff_mfa_rls.sql`: requires MFA for staff data access through both app routes and direct database API requests.
 - `supabase/schema.sql`: consolidated fresh-project schema.
 - `supabase/seed.sql`: synthetic demo jurisdictions/issues only.
 
@@ -538,7 +543,7 @@ Rodgers-SIH/
 
 Before a live pilot, the responsible authority and deployment team should:
 
-1. Apply all three migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
+1. Apply all four migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
 2. Use individual accounts with least-privilege role, department, and jurisdiction scopes. Change or remove shared demo credentials. Enroll staff in TOTP MFA.
 3. Populate and verify official jurisdiction, hub, department, officer/contact, legal-document, and optional service-target records from approved sources. Keep records unverified until reviewed.
 4. Approve privacy notices, consent language, data-retention/deletion rules, identity checks for data-rights requests, and the owners who fulfill those requests.
@@ -550,6 +555,8 @@ Before a live pilot, the responsible authority and deployment team should:
 10. State clearly which official grievance and emergency channels remain authoritative. Do not describe CivicChai as a statutory grievance or appeal channel unless the responsible authority formally approves that use and its integrations.
 
 The detailed coverage table and pilot boundaries are in this README and [Supabase setup](supabase/README.md).
+
+In production, issue and phone intake stay disabled unless `CIVICCHAI_PUBLIC_INTAKE_ENABLED=true`. Evidence uploads stay disabled unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable each only after its readiness requirements are met.
 
 ## SOP coverage
 

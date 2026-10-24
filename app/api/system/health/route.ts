@@ -13,6 +13,8 @@ export async function GET(request: Request) {
       database: 'not configured',
       serviceRole: false,
       authProvider: 'local demo sessions',
+      publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
+      evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
       profileCount: null,
       checkedAt: new Date().toISOString(),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -25,6 +27,8 @@ export async function GET(request: Request) {
       database: 'service key missing',
       serviceRole: false,
       authProvider: 'Supabase Auth',
+      publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
+      evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
       profileCount: null,
       checkedAt: new Date().toISOString(),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -36,6 +40,8 @@ export async function GET(request: Request) {
     database: error ? 'unavailable' : 'connected',
     serviceRole: true,
     authProvider: 'Supabase Auth',
+    publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
+    evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
     profileCount: error ? null : count ?? 0,
     checkedAt: new Date().toISOString(),
   }, { headers: { 'Cache-Control': 'private, no-store' } })

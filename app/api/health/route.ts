@@ -10,7 +10,7 @@ export async function GET() {
       service.from('issues').select('id,state,district,municipality,ward,has_evidence', { head: true, count: 'exact' }),
       service.rpc('civicchai_schema_version'),
     ])
-    database = !issueError && !schemaError && schemaVersion === 3
+    database = !issueError && !schemaError && schemaVersion === 4
   }
   const ready = configured && Boolean(service) && database
   const production = process.env.NODE_ENV === 'production'
@@ -18,6 +18,8 @@ export async function GET() {
     status: ready ? 'ok' : production ? 'not_ready' : 'local_preview',
     supabaseConfigured: configured,
     databaseConnected: database,
+    publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
+    evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
     timestamp: new Date().toISOString(),
   }, {
     status: production && !ready ? 503 : 200,

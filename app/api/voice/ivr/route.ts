@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server'
 import { analyzeComplaint } from '@/lib/ai'
 import { createIssue } from '@/lib/issues'
 import { getSupabaseServiceClient } from '@/lib/supabase'
+import { isPublicIntakeEnabled } from '@/lib/deployment'
 
 export const runtime = 'nodejs'
 
@@ -81,6 +82,7 @@ function messageFor(session: VoiceSession) {
 }
 
 export async function POST(request: Request) {
+  if (!isPublicIntakeEnabled()) return twiml(`${say('Phone issue intake is not enabled for this deployment. Please use your authority\'s official reporting channel.')}<Hangup/>`)
   const authToken = process.env.TWILIO_AUTH_TOKEN
   const publicBase = process.env.APP_BASE_URL ?? process.env.NEXT_PUBLIC_APP_URL
   const service = getSupabaseServiceClient()

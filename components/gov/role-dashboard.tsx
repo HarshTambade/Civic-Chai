@@ -47,6 +47,8 @@ type SystemHealth = {
   database: string
   serviceRole: boolean
   authProvider: string
+  publicIntakeEnabled: boolean
+  evidenceUploadsEnabled: boolean
   profileCount: number | null
   checkedAt: string
 }
@@ -289,7 +291,7 @@ export function RoleDashboard({ role, onNavigate }: Props) {
       <div className="grid gap-4 xl:grid-cols-2">
         <Panel title="Platform health" description="Safe infrastructure checks. System administration does not grant access to complaint content." action={action('Open system status', 'system')}>
           {loading ? <EmptyState>Checking platform health…</EmptyState> : system ? <dl className="space-y-3 text-xs">{[
-            ['Runtime', system.mode], ['Database connection', system.database], ['Authentication', system.authProvider], ['Server key', system.serviceRole ? 'Configured' : 'Not configured'], ['Account profiles', system.profileCount == null ? 'Not available' : String(system.profileCount)], ['Last checked', new Date(system.checkedAt).toLocaleString()],
+            ['Runtime', system.mode], ['Database connection', system.database], ['Authentication', system.authProvider], ['Server key', system.serviceRole ? 'Configured' : 'Not configured'], ['Public intake', system.publicIntakeEnabled ? 'Enabled' : 'Disabled'], ['Evidence uploads', system.evidenceUploadsEnabled ? 'Enabled' : 'Disabled'], ['Account profiles', system.profileCount == null ? 'Not available' : String(system.profileCount)], ['Last checked', new Date(system.checkedAt).toLocaleString()],
           ].map(([label, value]) => <div key={label} className="flex items-center justify-between gap-3 border-b border-sidebar-border pb-2 last:border-0"><dt className="text-sidebar-foreground/50">{label}</dt><dd className="text-right font-medium text-sidebar-foreground">{value}</dd></div>)}</dl> : <EmptyState>System health information is unavailable.</EmptyState>}
         </Panel>
         <Panel title="Data-rights workflow" description="Access, correction, erasure and grievance requests with a recorded outcome." action={action('Review privacy requests', 'privacy')}>
@@ -335,7 +337,7 @@ export function SystemHealthView() {
       {message && <p role="status" className="mt-4 rounded-lg bg-sidebar p-3 text-xs text-sidebar-foreground/65">{message}</p>}
     </section>
     {health && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
-      ['Runtime mode', health.mode], ['Database', health.database], ['Authentication', health.authProvider], ['Service role', health.serviceRole ? 'Configured' : 'Not configured'], ['Account profiles', health.profileCount == null ? 'Not available' : String(health.profileCount)], ['Last checked', new Date(health.checkedAt).toLocaleString()],
+      ['Runtime mode', health.mode], ['Database', health.database], ['Authentication', health.authProvider], ['Service role', health.serviceRole ? 'Configured' : 'Not configured'], ['Public intake', health.publicIntakeEnabled ? 'Enabled' : 'Disabled'], ['Evidence uploads', health.evidenceUploadsEnabled ? 'Enabled' : 'Disabled'], ['Account profiles', health.profileCount == null ? 'Not available' : String(health.profileCount)], ['Last checked', new Date(health.checkedAt).toLocaleString()],
     ].map(([label, value]) => <article key={label} className="rounded-lg border border-sidebar-border bg-sidebar-accent p-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/45">{label}</p><p className="mt-2 text-sm font-semibold text-sidebar-foreground">{value}</p></article>)}</section>}
     <section className="rounded-xl border border-sidebar-border bg-sidebar-accent p-5"><h3 className="text-sm font-semibold text-sidebar-foreground">Access boundary</h3><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/55">Civic case records remain restricted to citizens for their own activity, assigned department staff for their queue, jurisdiction administrators for authorized PINs, and auditors for the approved audit trail.</p></section>
   </div>

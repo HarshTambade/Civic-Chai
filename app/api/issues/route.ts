@@ -6,6 +6,7 @@ import { recordFallbackAudit } from '@/lib/audit'
 import { canManageIssues } from '@/lib/roles'
 import { toPublicIssue } from '@/lib/privacy'
 import { consumeRateLimit } from '@/lib/rate-limit'
+import { isPublicIntakeEnabled } from '@/lib/deployment'
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production' && !hasSupabaseConfig()) return NextResponse.json({ error: 'Civic issue storage is not configured.' }, { status: 503 })
@@ -37,6 +38,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  if (!isPublicIntakeEnabled()) return NextResponse.json({ error: 'Public issue intake is not enabled for this deployment.' }, { status: 503 })
   try {
     const rateLimit = await consumeRateLimit(request, 'issue-create', 8, 600)
     if (rateLimit === null) return NextResponse.json({ error: 'Request protection is temporarily unavailable. Please try again shortly.' }, { status: 503 })
