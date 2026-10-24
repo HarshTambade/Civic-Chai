@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'civicchai-v7'
+const CACHE_VERSION = 'civicchai-v8'
 const SHELL_CACHE = `${CACHE_VERSION}-shell`
 const APP_SHELL = [
   '/',
@@ -12,7 +12,6 @@ const APP_SHELL = [
   '/icon-192.png',
   '/icon-512.png',
   '/icon-light-32x32.png',
-  '/icon-dark-32x32.png',
 ]
 
 self.addEventListener('install', (event) => {
