@@ -3,7 +3,8 @@ import type { IssueRecord } from '@/lib/types'
 const EMAIL = /\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi
 const INDIAN_PHONE = /(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}\b/g
 const LONG_ID = /\b\d{12}\b/g
-const HOUSE_NUMBER = /\b(?:house|flat|door|h\.no\.?|flat no\.?)\s*#?\s*[A-Z0-9/-]+\b/gi
+// Longer prefixes come first so "flat no. B-204" hides the number, not just the word "no".
+const HOUSE_NUMBER = /\b(?:flat no\.?|house no\.?|door no\.?|h\.\s?no\.?|house|flat|door)\s*#?\s*[A-Z0-9/-]+\b/gi
 
 export function redactPublicText(value: string) {
   return value

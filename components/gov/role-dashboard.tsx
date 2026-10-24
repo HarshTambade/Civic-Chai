@@ -50,6 +50,7 @@ type SystemHealth = {
   publicIntakeEnabled: boolean
   evidenceUploadsEnabled: boolean
   profileCount: number | null
+  schemaVersion?: string | null
   checkedAt: string
 }
 
@@ -337,7 +338,7 @@ export function SystemHealthView() {
       {message && <p role="status" className="mt-4 rounded-lg bg-sidebar p-3 text-xs text-sidebar-foreground/65">{message}</p>}
     </section>
     {health && <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{[
-      ['Runtime mode', health.mode], ['Database', health.database], ['Authentication', health.authProvider], ['Service role', health.serviceRole ? 'Configured' : 'Not configured'], ['Public intake', health.publicIntakeEnabled ? 'Enabled' : 'Disabled'], ['Evidence uploads', health.evidenceUploadsEnabled ? 'Enabled' : 'Disabled'], ['Account profiles', health.profileCount == null ? 'Not available' : String(health.profileCount)], ['Last checked', new Date(health.checkedAt).toLocaleString()],
+      ['Runtime mode', health.mode], ['Database', health.database], ['Authentication', health.authProvider], ['Service role', health.serviceRole ? 'Configured' : 'Not configured'], ['Public intake', health.publicIntakeEnabled ? 'Enabled' : 'Disabled'], ['Evidence uploads', health.evidenceUploadsEnabled ? 'Enabled' : 'Disabled'], ['Account profiles', health.profileCount == null ? 'Not available' : String(health.profileCount)], ['Database schema', health.schemaVersion ?? 'Not applicable'], ['Last checked', new Date(health.checkedAt).toLocaleString()],
     ].map(([label, value]) => <article key={label} className="rounded-lg border border-sidebar-border bg-sidebar-accent p-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/45">{label}</p><p className="mt-2 text-sm font-semibold text-sidebar-foreground">{value}</p></article>)}</section>}
     <section className="rounded-xl border border-sidebar-border bg-sidebar-accent p-5"><h3 className="text-sm font-semibold text-sidebar-foreground">Access boundary</h3><p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/55">Civic case records remain restricted to citizens for their own activity, assigned department staff for their queue, jurisdiction administrators for authorized PINs, and auditors for the approved audit trail.</p></section>
   </div>

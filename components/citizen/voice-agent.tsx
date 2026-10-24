@@ -5,8 +5,9 @@ import { useEffect, useState } from 'react'
 import { SiteNav } from '@/components/landing/site-nav'
 import { SiteFooter } from '@/components/landing/site-footer'
 import { analyzeComplaintRequest } from '@/lib/ai'
-import { civicFetch, submitIssuePayload } from '@/lib/client-api'
+import { submitIssuePayload } from '@/lib/client-api'
 import { useAuth } from '@/components/auth-provider'
+import { useServiceArea } from '@/components/citizen/use-service-area'
 import { saveOfflineDraft } from '@/lib/offline-queue'
 import type { IssueRecord } from '@/lib/types'
 import { Check, Mic, Phone, Volume2 } from 'lucide-react'
@@ -20,7 +21,8 @@ function speechRecognition() {
 }
 
 export function VoiceAgent() {
-  const { user } = useAuth()
+  const { user, isHydrated } = useAuth()
+  const area = useServiceArea()
   const [language, setLanguage] = useState('English')
   const [problem, setProblem] = useState('')
   const [pin, setPin] = useState('')
@@ -35,28 +37,10 @@ export function VoiceAgent() {
   const [issue, setIssue] = useState<IssueRecord | null>(null)
 
   useEffect(() => {
-    let cancelled = false
-    const localKey = `civicchai_profile_settings:${user?.id ?? 'guest'}`
-    if (user?.demo || !user) {
-      try {
-        const saved = localStorage.getItem(localKey)
-        if (saved) {
-          const profile = JSON.parse(saved) as { preferred_pin?: string; locality?: string }
-          if (!cancelled) { setPin(profile.preferred_pin ?? ''); setLocality(profile.locality ?? '') }
-        }
-      } catch {
-        // Invalid local preferences are ignored; manual area entry remains available.
-      }
-    } else {
-      civicFetch('/api/profile').then((response) => response.ok ? response.json() : null).then((payload) => {
-        if (!cancelled && payload?.profile) {
-          setPin(payload.profile.preferred_pin ?? '')
-          setLocality(payload.profile.locality ?? '')
-        }
-      }).catch(() => {})
-    }
-    return () => { cancelled = true }
-  }, [user?.id, user?.demo])
+    if (!area.loaded) return
+    setPin((current) => current || area.pin)
+    setLocality((current) => current || area.locality)
+  }, [area.loaded, area.pin, area.locality])
 
   function readSummary() {
     const summary = `${problem}. PIN ${pin}. ${locality}. Reported for ${duration || 'an unspecified duration'}. Evidence ${proof === '1' ? 'is available' : 'is not available'}.`
@@ -94,12 +78,13 @@ export function VoiceAgent() {
   async function submit() {
     if (!confirmed) { setMessage('Read back and confirm the complaint summary before filing.'); return }
     if (problem.trim().length < 8 || !/^\d{6}$/.test(pin) || !locality.trim()) { setMessage('Enter the problem, a six-digit PIN and a locality first.'); return }
+    if (!user) { setMessage('Sign in before filing so you can track the report and confirm when it is fixed.'); return }
     setBusy(true)
     setMessage('')
     try {
       const analysis = await analyzeComplaintRequest(`${problem} ${duration}`.trim(), language, { pin, locality })
       const payload = {
-        title: analysis.issue,
+        title: `${analysis.issue} — ${locality.trim()}`.slice(0, 140),
         description: problem.trim(),
         original_text: problem.trim(),
         normalized_text: analysis.summary,
@@ -107,13 +92,14 @@ export function VoiceAgent() {
         department: analysis.department,
         pin,
         locality,
-        source_channel: 'keypad' as const,
+        source_channel: 'voice' as const,
         language: analysis.language,
         ai_confidence: analysis.confidence,
         severity: analysis.severity,
         consent: { browser_speech: voiceConsent, caller_confirmed: true, raw_audio_retained: false },
       }
       if (!navigator.onLine) {
+        if (!area.consent.offline_storage) { setMessage('You are offline. Allow on-device draft storage in Profile, or reconnect to submit.'); return }
         await saveOfflineDraft(payload)
         setMessage('Saved locally as a pending draft. It is not submitted until you reconnect and sync it.')
         return
@@ -172,6 +158,8 @@ export function VoiceAgent() {
 
           {message && <p role="status" className="mt-4 rounded-lg bg-muted p-3 text-sm">{message}</p>}
           {issue && <Link href={`/citizen`} className="mt-3 inline-flex text-sm font-semibold text-chai underline">Open My Charcha to track {issue.documentId}</Link>}
+
+          {isHydrated && !user && <p className="mt-4 rounded-lg border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/75"><Link href="/login?next=/voice-agent" className="font-semibold text-chai underline">Sign in</Link> to file this report so you can track it and confirm when it is fixed.</p>}
 
           <button onClick={submit} disabled={busy || !confirmed} className="mt-5 w-full rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream disabled:opacity-50">{busy ? 'Submitting…' : 'Confirm and submit report'}</button>
 

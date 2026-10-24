@@ -3,6 +3,7 @@ import { getFallbackIssueFollowers, getFallbackIssueSupporters, getIssueById, up
 import { authorizeRoles } from '@/lib/api-auth'
 import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
 import { addFallbackNotification } from '@/lib/notifications'
+import { DEPARTMENT_OPTIONS } from '@/lib/ai'
 
 const MANAGERS = ['department_operator', 'department_supervisor', 'authority_admin'] as const
 const VALID_STATUSES = ['Filed', 'AI Classified', 'Assigned', 'Acknowledged', 'In Progress', 'Resolved', 'Community Verified', 'Closed', 'Duplicate', 'Under Review']
@@ -34,13 +35,14 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const role = auth.actor?.role
     const allowedStatuses = role === 'department_operator' ? OPERATIONAL_STATUSES : role === 'department_supervisor' ? SUPERVISOR_STATUSES : AUTHORITY_STATUSES
     if (status && status !== before.status && !allowedStatuses.includes(status)) return NextResponse.json({ error: 'This role cannot set that issue status. Duplicate and community verification decisions use their dedicated review flows.' }, { status: 403 })
-    if (status === 'Closed' && status !== before.status && before.status !== 'Resolved') return NextResponse.json({ error: 'An issue must be resolved before it can be closed.' }, { status: 409 })
+    if (status === 'Closed' && status !== before.status && !['Resolved', 'Community Verified'].includes(before.status)) return NextResponse.json({ error: 'An issue must be resolved before it can be closed.' }, { status: 409 })
     if (before && (auth.actor?.role === 'department_operator' || auth.actor?.role === 'department_supervisor') && (!auth.actor.department || !auth.actor.pin || before.department !== auth.actor.department || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your assigned department and PIN scope.' }, { status: 404 })
     if (before && auth.actor?.role === 'authority_admin' && (!auth.actor.pin || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your authorized jurisdiction.' }, { status: 404 })
     const department = typeof body.department === 'string' && body.department.trim() ? body.department.trim().slice(0, 120) : undefined
     let officer = typeof body.officer === 'string' && body.officer.trim() ? body.officer.trim().slice(0, 120) : undefined
     if (role === 'department_operator' && (department !== undefined || officer !== undefined)) return NextResponse.json({ error: 'Department operators can update issue progress but cannot assign departments or officers.' }, { status: 403 })
     if (role === 'department_supervisor' && department !== undefined) return NextResponse.json({ error: 'Department supervisors can assign within their existing department only.' }, { status: 403 })
+    if (!service && department && department !== before.department && !DEPARTMENT_OPTIONS.includes(department)) return NextResponse.json({ error: 'Route this issue to a configured department.' }, { status: 400 })
     if (service && department && department !== before.department) {
       const { data: approvedDepartment, error: departmentError } = await service.from('departments').select('id').eq('name', department).limit(1).maybeSingle()
       if (departmentError) return NextResponse.json({ error: 'The department registry is unavailable. Apply the CivicChai database migrations first.' }, { status: 503 })
@@ -54,17 +56,21 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
       if (!approvedOfficer) return NextResponse.json({ error: 'Assign only an officer listed as verified for this department and PIN.' }, { status: 400 })
     }
     const resolutionEvidence = typeof body.resolutionEvidence === 'string' ? body.resolutionEvidence.trim() : ''
-    if (status === 'Resolved' && before.status !== 'Resolved' && !isOfficialEvidenceUrl(resolutionEvidence)) return NextResponse.json({ error: 'Add a public HTTPS resolution record from an official .gov.in or .nic.in source before marking this issue resolved.' }, { status: 400 })
-    if (resolutionEvidence && !isOfficialEvidenceUrl(resolutionEvidence)) return NextResponse.json({ error: 'Resolution evidence must use an official HTTPS .gov.in or .nic.in source.' }, { status: 400 })
+    const note = typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 2000) : undefined
+    // A resolution must tell citizens what was done: a public note, or an official record link.
+    if (status === 'Resolved' && before.status !== 'Resolved' && !resolutionEvidence && (note?.length ?? 0) < 15) return NextResponse.json({ error: 'Describe the action taken in the official update (at least 15 characters) or add an official .gov.in/.nic.in record before marking this issue resolved.' }, { status: 400 })
+    if (resolutionEvidence && !isOfficialEvidenceUrl(resolutionEvidence)) return NextResponse.json({ error: 'Resolution evidence links must use an official HTTPS .gov.in or .nic.in source.' }, { status: 400 })
+    // Local preview returns the stored object itself, so keep the prior status before it is mutated.
+    const previousStatus = before.status
     const issue = await updateIssue(id, {
       status: status as any,
       department,
       officer,
-      note: typeof body.note === 'string' && body.note.trim() ? body.note.trim().slice(0, 2000) : undefined,
+      note,
       resolutionEvidence: resolutionEvidence || undefined,
     }, auth.actor?.id, service ?? auth.client)
     if (!issue) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
-    if (status && before?.status !== issue.status) {
+    if (status && previousStatus !== issue.status) {
       const title = `CivicChai update · ${issue.documentId}`
       const bodyText = `The issue status changed to ${issue.status}. Open the report to view the official timeline.`
       if (service) {

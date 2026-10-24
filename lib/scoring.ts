@@ -51,6 +51,11 @@ export function calculatePriorityScore(input: {
   return { score, factors, priority }
 }
 
+/** Mirrors refresh_issue_signals() in the database so local preview heat matches connected mode. */
+export function calculateChaiHeat(supporters: number, reports: number) {
+  return clamp(12 * Math.log(Math.max(0, supporters) + 1) + 16 * Math.log(Math.max(1, reports) + 1))
+}
+
 export function calculateTrustScore(input: {
   hasEvidence?: boolean
   locationProvided?: boolean
@@ -117,7 +122,8 @@ export function findDuplicateCandidates<T extends {
 }>(input: { text: string; pin?: string; locality?: string; department?: string; category?: string; hasEvidence?: boolean }, issues: T[]): DuplicateCandidate[] {
   const candidates = issues.map((issue) => {
     const samePin = Boolean(input.pin && issue.pin === input.pin)
-    if (!samePin) return null
+    // A merged report points at its canonical issue; suggest the canonical one instead.
+    if (!samePin || issue.status === 'Duplicate') return null
     const sameLocality = Boolean(input.locality && issue.locality.toLowerCase() === input.locality.toLowerCase())
     const sameDepartment = Boolean(input.department && issue.department.toLowerCase() === input.department.toLowerCase())
     const sameCategory = Boolean(input.category && issue.category && issue.category.toLowerCase() === input.category.toLowerCase())

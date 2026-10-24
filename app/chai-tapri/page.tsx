@@ -9,6 +9,7 @@ import { SiteFooter } from '@/components/landing/site-footer'
 import { SiteNav } from '@/components/landing/site-nav'
 import { useLanguage } from '@/components/language-provider'
 import type { IssueRecord } from '@/lib/types'
+import { hottestScore } from '@/lib/issue-helpers'
 
 export default function ChaiTapriPage() {
   const { t } = useLanguage()
@@ -17,10 +18,10 @@ export default function ChaiTapriPage() {
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/issues')
+    fetch('/api/public/trending')
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
-        if (!cancelled && Array.isArray(payload?.issues)) setIssues(payload.issues)
+        if (!cancelled && Array.isArray(payload?.issues)) setIssues(payload.issues.filter((issue: IssueRecord) => !['Duplicate', 'Closed'].includes(issue.status)))
       })
       .catch(() => {
         if (!cancelled) setIssues([])
@@ -31,7 +32,7 @@ export default function ChaiTapriPage() {
     }
   }, [])
 
-  const ranked = [...issues].sort((a, b) => (b.chaiHeat ?? 0) - (a.chaiHeat ?? 0)).slice(0, 6)
+  const ranked = [...issues].sort((a, b) => hottestScore(b) - hottestScore(a)).slice(0, 6)
 
   return (
     <main className="min-h-dvh bg-background text-charcoal">
@@ -68,6 +69,7 @@ export default function ChaiTapriPage() {
             </div>
           </div>
 
+          {ranked.length === 0 && <p className="rounded-2xl border border-dashed border-border bg-card p-6 text-center text-sm text-charcoal/60">No public issues are trending yet.</p>}
           <ol className="space-y-4">
             {ranked.map((issue, index) => (
               <li
@@ -82,7 +84,7 @@ export default function ChaiTapriPage() {
 
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-center gap-2">
-                    <p className="truncate font-display text-xl font-bold text-charcoal">{issue.title}</p>
+                    <Link href={`/issues/${encodeURIComponent(issue.id)}`} className="truncate font-display text-xl font-bold text-charcoal hover:text-chai hover:underline">{issue.title}</Link>
                     <PriorityBadge priority={issue.priority} />
                   </div>
                   <p className="mt-1 text-sm text-charcoal/60">

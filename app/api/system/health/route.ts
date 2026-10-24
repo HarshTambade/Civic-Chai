@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
+import { REQUIRED_SCHEMA_VERSION, areEvidenceUploadsEnabled, isPublicIntakeEnabled } from '@/lib/deployment'
 
 export async function GET(request: Request) {
   const auth = await authorizeRoles(request, ['system_admin'])
@@ -13,8 +14,9 @@ export async function GET(request: Request) {
       database: 'not configured',
       serviceRole: false,
       authProvider: 'local demo sessions',
-      publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
-      evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
+      publicIntakeEnabled: isPublicIntakeEnabled(),
+      evidenceUploadsEnabled: areEvidenceUploadsEnabled(),
+      schemaVersion: null,
       profileCount: null,
       checkedAt: new Date().toISOString(),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
@@ -27,21 +29,26 @@ export async function GET(request: Request) {
       database: 'service key missing',
       serviceRole: false,
       authProvider: 'Supabase Auth',
-      publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
-      evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
+      publicIntakeEnabled: isPublicIntakeEnabled(),
+      evidenceUploadsEnabled: areEvidenceUploadsEnabled(),
+      schemaVersion: null,
       profileCount: null,
       checkedAt: new Date().toISOString(),
     }, { headers: { 'Cache-Control': 'private, no-store' } })
   }
 
-  const { count, error } = await service.from('profiles').select('id', { count: 'exact', head: true })
+  const [{ count, error }, { data: schemaVersion }] = await Promise.all([
+    service.from('profiles').select('id', { count: 'exact', head: true }),
+    service.rpc('civicchai_schema_version'),
+  ])
   return NextResponse.json({
     mode: 'connected deployment',
     database: error ? 'unavailable' : 'connected',
     serviceRole: true,
     authProvider: 'Supabase Auth',
-    publicIntakeEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true',
-    evidenceUploadsEnabled: process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_EVIDENCE_UPLOADS_ENABLED === 'true',
+    publicIntakeEnabled: isPublicIntakeEnabled(),
+    evidenceUploadsEnabled: areEvidenceUploadsEnabled(),
+    schemaVersion: typeof schemaVersion === 'number' ? `${schemaVersion}${schemaVersion === REQUIRED_SCHEMA_VERSION ? '' : ` (requires ${REQUIRED_SCHEMA_VERSION})`}` : `unknown (requires ${REQUIRED_SCHEMA_VERSION})`,
     profileCount: error ? null : count ?? 0,
     checkedAt: new Date().toISOString(),
   }, { headers: { 'Cache-Control': 'private, no-store' } })

@@ -2,8 +2,10 @@ import { NextResponse } from 'next/server'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getLocalModerationReports, type ModerationStatus } from '@/lib/moderation'
 import { getSupabaseServiceClient } from '@/lib/supabase'
+import { recordFallbackAudit } from '@/lib/audit'
 
-const STATUSES: ModerationStatus[] = ['reviewing', 'actioned', 'dismissed', 'appealed']
+// "appealed" is set only by the reporter's appeal; reviewers record a fresh decision instead.
+const STATUSES: ModerationStatus[] = ['reviewing', 'actioned', 'dismissed']
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await authorizeRoles(request, ['moderator', 'authority_admin'])
@@ -14,11 +16,13 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const status = String(body.status ?? '') as ModerationStatus
     if (!STATUSES.includes(status)) return NextResponse.json({ error: 'Choose a valid review action.' }, { status: 400 })
     const moderatorNote = typeof body.moderator_note === 'string' ? body.moderator_note.trim().slice(0, 2000) : ''
+    if (status !== 'reviewing' && moderatorNote.length < 5) return NextResponse.json({ error: 'Document the reason for this decision before recording it.' }, { status: 400 })
     const service = getSupabaseServiceClient()
     if (!service) {
       const report = getLocalModerationReports().find((item) => item.id === id)
       if (!report) return NextResponse.json({ error: 'Report not found.' }, { status: 404 })
       Object.assign(report, { status, moderator_note: moderatorNote, reviewed_at: new Date().toISOString() })
+      recordFallbackAudit(`moderation.${status}`, report.issue_id ?? undefined, auth.actor?.id, { report_id: id, comment_id: report.comment_id, moderator_note: moderatorNote })
       return NextResponse.json({ report })
     }
     const { data: report, error: reportError } = await service.from('moderation_reports').select('id,issue_id,comment_id,status').eq('id', id).maybeSingle()

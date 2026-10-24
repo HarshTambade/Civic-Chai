@@ -105,9 +105,9 @@ export function AIShowcase() {
               Arre, yeh Chai pehle se chal rahi hai!
             </h3>
             <p className="mt-3 text-sm leading-relaxed text-charcoal/70">
-              Semantic duplicate detection finds issues that mean the same thing
-              — even across languages. Instead of a lonely new complaint, you add
-              your weight to one that&apos;s already gaining heat.
+              Before you file, CivicChai looks for similar reports in the same PIN
+              by comparing wording, locality and category. Instead of a lonely new
+              complaint, you can add your weight to one that&apos;s already gaining heat.
             </p>
             <div className="mt-4 flex items-start gap-2 rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/80">
               <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-gold" />
@@ -117,6 +117,7 @@ export function AIShowcase() {
           </div>
 
           <div className="rounded-2xl border border-border bg-background p-5">
+            <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-charcoal/40">Illustrative example</p>
             <p className="text-xs font-medium text-charcoal/50">Your complaint</p>
             <p className="mt-1 text-sm font-medium text-charcoal">
               &ldquo;Station Road ki lights band hain.&rdquo;

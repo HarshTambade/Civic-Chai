@@ -25,10 +25,12 @@ export async function POST(request: Request) {
       ? await analyzeComplaintWithGroq(text, language, { pin, locality, hasEvidence })
       : (await import('@/lib/ai')).analyzeComplaint(text, language, { pin, locality, hasEvidence })
     const candidates = findDuplicateCandidates({ text, pin: result.pin, locality: result.locality, department: result.department, category: result.category, hasEvidence }, await getIssues())
-    const strong = candidates.find((candidate) => candidate.similarity >= 0.75)
+    // SOP bands: 0.90+ strong suggestion, 0.75-0.89 related suggestion, below 0.75 treated as distinct.
+    const suggested = candidates.filter((candidate) => candidate.similarity >= 0.75)
+    const strong = suggested[0]
     return NextResponse.json({
       ...result,
-      duplicateCandidates: candidates,
+      duplicateCandidates: suggested,
       duplicateIssueFound: Boolean(strong),
       duplicateIssue: strong ? { ...strong.issue, similarity: strong.similarity, band: strong.band } : undefined,
       duplicateIssueId: strong?.issue.id,

@@ -88,17 +88,19 @@ export function ControlRoom() {
   const head = roleHeader && tab === ROLE_HOME[user?.role ?? 'authority_admin']
     ? roleHeader
     : TITLES[tab]
+  const needsMfa = Boolean(isHydrated && user && user.role !== 'citizen' && !user.demo && !mfaVerified)
   useEffect(() => {
-    if (isHydrated && user && user.role !== 'citizen' && !user.demo && !mfaVerified) router.replace('/mfa')
-  }, [isHydrated, user, mfaVerified, router])
+    if (needsMfa) router.replace('/mfa')
+  }, [needsMfa, router])
 
   useEffect(() => {
+    if (needsMfa) return
     let cancelled = false
     civicFetch('/api/notifications').then((response) => response.ok ? response.json() : null).then((payload) => {
       if (!cancelled) setNotifications(Array.isArray(payload?.notifications) ? payload.notifications : [])
     }).catch(() => {})
     return () => { cancelled = true }
-  }, [user?.id])
+  }, [user?.id, needsMfa])
 
   async function markAllNotificationsRead() {
     const response = await civicFetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mark_all: true }) })
@@ -126,8 +128,11 @@ export function ControlRoom() {
   const safeTab = visibleNav.some((item) => item.id === tab) ? tab : visibleNav[0]?.id ?? 'home'
 
   const handleLogout = () => {
-    logout()
+    void logout()
   }
+
+  // Staff views stay unmounted until the session reaches AAL2, so no protected request is attempted.
+  if (needsMfa) return <main className="flex min-h-screen items-center justify-center bg-sidebar text-sm text-sidebar-foreground/60" role="status">Redirecting to multi-factor verification…</main>
 
   return (
     <div className="flex min-h-screen bg-sidebar font-sans text-sidebar-foreground">

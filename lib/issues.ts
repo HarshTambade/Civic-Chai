@@ -1,5 +1,5 @@
 import { getSupabaseClient } from '@/lib/supabase'
-import { calculatePriorityScore, calculateTrustScore } from '@/lib/scoring'
+import { calculateChaiHeat, calculatePriorityScore, calculateTrustScore } from '@/lib/scoring'
 import { recordFallbackAudit } from '@/lib/audit'
 import { redactPublicText, safeComment } from '@/lib/privacy'
 import type { CreateIssueInput, IssueRecord, IssueStatus } from '@/lib/types'
@@ -8,6 +8,7 @@ const ISSUE_FALLBACK_STORE_KEY = '__civicchai_issue_store__'
 const COMMENT_FALLBACK_STORE_KEY = '__civicchai_comment_store__'
 const SUPPORT_FALLBACK_STORE_KEY = '__civicchai_support_store__'
 const FOLLOW_FALLBACK_STORE_KEY = '__civicchai_follow_store__'
+const CORROBORATION_FALLBACK_STORE_KEY = '__civicchai_corroboration_store__'
 export type IssueComment = { id: string; issue_id: string; author_id?: string; display_name: string; body: string; created_at: string }
 
 function getFallbackIssueStore(): IssueRecord[] {
@@ -32,6 +33,12 @@ function getFallbackFollowStore() {
   const globalScope = globalThis as typeof globalThis & { [FOLLOW_FALLBACK_STORE_KEY]?: Set<string> }
   if (!globalScope[FOLLOW_FALLBACK_STORE_KEY]) globalScope[FOLLOW_FALLBACK_STORE_KEY] = new Set()
   return globalScope[FOLLOW_FALLBACK_STORE_KEY]!
+}
+
+function getFallbackCorroborationStore() {
+  const globalScope = globalThis as typeof globalThis & { [CORROBORATION_FALLBACK_STORE_KEY]?: Set<string> }
+  if (!globalScope[CORROBORATION_FALLBACK_STORE_KEY]) globalScope[CORROBORATION_FALLBACK_STORE_KEY] = new Set()
+  return globalScope[CORROBORATION_FALLBACK_STORE_KEY]!
 }
 
 export function getFallbackIssueFollowers(issueId: string) {
@@ -192,7 +199,7 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
     source_channel: input.source_channel ?? 'web',
     model_version: 'civicchai-rules-v1',
     trust: trustResult.score,
-    chai_heat: 0,
+    chai_heat: calculateChaiHeat(0, 1),
     supporters: 0,
     reports: 1,
     comments: 0,
@@ -267,7 +274,7 @@ export async function updateIssue(
     const updatedAt = new Date().toISOString()
     current.updatedAt = updatedAt
     current.updated_at = updatedAt
-    recordFallbackAudit(input.status ? 'issue.status_changed' : 'issue.assignment_changed', current.id, actorId, { before, status: current.status, department: current.department, officer: current.officer, note: input.note })
+    recordFallbackAudit(input.status && input.status !== before.status ? 'issue.status_changed' : 'issue.assignment_changed', current.id, actorId, { before, status: current.status, department: current.department, officer: current.officer, note: input.note, resolution_evidence_url: input.resolutionEvidence })
     return current
   }
   const { error } = await client.rpc('apply_issue_action', {
@@ -291,7 +298,7 @@ export async function addIssueSupport(id: string, userId?: string, client = getS
     if (!getFallbackSupportStore().has(key)) {
       getFallbackSupportStore().add(key)
       issue.supporters += 1
-      issue.chaiHeat = Math.min(100, Math.round(issue.chaiHeat + 2))
+      issue.chaiHeat = calculateChaiHeat(issue.supporters, issue.reports)
       recordFallbackAudit('issue.supported', issue.id, userId)
     }
     return issue
@@ -299,6 +306,49 @@ export async function addIssueSupport(id: string, userId?: string, client = getS
   if (!userId) throw new Error('Sign in to support this issue.')
   const { error } = await client.from('issue_supports').upsert({ issue_id: issue.id, user_id: userId }, { onConflict: 'issue_id,user_id', ignoreDuplicates: true })
   if (error) throw error
+  return getIssueById(issue.id, client)
+}
+
+/**
+ * Records a citizen's own report against an existing issue when they join it from
+ * the duplicate suggestion. It counts once per account as an independent report.
+ * Connected mode must pass the service client: issue reports are server-written.
+ */
+export async function addCorroboratingReport(
+  id: string,
+  userId: string,
+  report: { text: string; language?: string; sourceChannel?: IssueRecord['sourceChannel']; hasEvidence?: boolean; consent?: Record<string, boolean> },
+  client = getSupabaseClient(),
+) {
+  const issue = await getIssueById(id, client, Boolean(client))
+  if (!issue) return null
+  const text = report.text.trim().slice(0, 5000)
+  if (text.length < 8) return issue
+  const trust = calculateTrustScore({ hasEvidence: report.hasEvidence, locationProvided: true, corroborationCount: issue.reports, textLength: text.length })
+  if (!client) {
+    const key = `${userId}:${issue.id}`
+    if (issue.createdBy === userId || getFallbackCorroborationStore().has(key)) return issue
+    getFallbackCorroborationStore().add(key)
+    issue.reports += 1
+    issue.chaiHeat = calculateChaiHeat(issue.supporters, issue.reports)
+    recordFallbackAudit('issue.report_joined', issue.id, userId, { source_channel: report.sourceChannel ?? 'web' })
+    return issue
+  }
+  const { data: existing } = await client.from('issue_reports').select('id').eq('issue_id', issue.id).eq('reporter_id', userId).limit(1).maybeSingle()
+  if (existing || issue.createdBy === userId) return issue
+  const { error } = await client.from('issue_reports').insert({
+    issue_id: issue.id,
+    reporter_id: userId,
+    source_channel: report.sourceChannel ?? 'web',
+    original_text: text,
+    language: report.language?.slice(0, 40) ?? 'Unknown',
+    trust_score: trust.score,
+    trust_factors: trust.factors,
+    model_version: 'civicchai-rules-v1',
+    consent: report.consent ?? {},
+  })
+  if (error) throw error
+  await client.from('audit_logs').insert({ issue_id: issue.id, actor_id: userId, action: 'issue.report_joined', details: { source_channel: report.sourceChannel ?? 'web' } })
   return getIssueById(issue.id, client)
 }
 
@@ -356,7 +406,9 @@ export async function setIssueFollow(id: string, userId: string | undefined, fol
   return issue
 }
 
-export async function addIssueComment(id: string, body: string, authorId?: string, displayName = 'Community member', client = getSupabaseClient()) {
+// Public discussion never shows account names; connected reads cannot see them either.
+export async function addIssueComment(id: string, body: string, authorId?: string, client = getSupabaseClient()) {
+  const displayName = 'Community member'
   const issue = await getIssueById(id, client)
   if (!issue) return null
   const text = safeComment(body.trim())

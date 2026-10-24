@@ -13,6 +13,8 @@ import { ChaiCard } from '@/components/brand/chai-card'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { CivicTimeline } from '@/components/brand/civic-timeline'
 import { StatusBadge, PriorityBadge } from '@/components/brand/badges'
+import { localProfileKey, notifyProfileUpdated, useServiceArea } from './use-service-area'
+import { hottestScore } from '@/lib/issue-helpers'
 import {
   MapPin,
   Bell,
@@ -26,47 +28,36 @@ import {
 
 /* ---------------- Local Chai (Home feed) ---------------- */
 export function LocalChaiView() {
-  const { user } = useAuth()
+  const { pin, locality, loaded } = useServiceArea()
   const [issues, setIssues] = useState<IssueRecord[]>([])
-  const [pin, setPin] = useState('')
-  const [locality, setLocality] = useState('')
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
+    if (!loaded) return
     let cancelled = false
-    const loadArea = async () => {
-      if (user?.demo || !user) {
-        try { const saved = localStorage.getItem(`civicchai_profile_settings:${user?.id ?? 'guest'}`); if (saved) { const parsed = JSON.parse(saved); if (!cancelled) { setPin(parsed.preferred_pin ?? ''); setLocality(parsed.locality ?? '') } } } catch {}
-      } else {
-        try { const response = await civicFetch('/api/profile'); const payload = await response.json(); if (!cancelled && payload.profile) { setPin(payload.profile.preferred_pin ?? ''); setLocality(payload.profile.locality ?? '') } } catch {}
-      }
-    }
-    void loadArea()
-    return () => { cancelled = true }
-  }, [user?.id, user?.demo])
-
-  useEffect(() => {
-    let cancelled = false
+    setLoading(true)
     const cacheKey = `civicchai:issues:v2:${pin || 'all'}`
     fetchIssuesWithCache(async () => {
       const res = await fetch(`/api/public/issues${pin ? `?pin=${encodeURIComponent(pin)}` : ''}`)
       if (!res.ok) throw new Error('Failed')
       return res.json()
     }, cacheKey).then((cachedIssues) => {
-      if (!cancelled && Array.isArray(cachedIssues) && cachedIssues.length > 0) {
-        setIssues(cachedIssues as IssueRecord[])
-      }
-    }).catch(() => {
-      if (!cancelled) setIssues([])
+      // Merged reports are represented by their canonical issue in the feed.
+      if (!cancelled) setIssues((cachedIssues as IssueRecord[]).filter((issue) => issue.status !== 'Duplicate'))
+    }).finally(() => {
+      if (!cancelled) setLoading(false)
     })
 
     return () => {
       cancelled = true
     }
-  }, [pin])
+  }, [pin, loaded])
 
   return (
     <div className="space-y-6">
-      {!pin && <p className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/70">{locality ? `Your saved locality is ${locality}. ` : ''}Add your six-digit PIN and locality in Profile to make this feed local.</p>}
+      {loaded && !pin && <p className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/70">{locality ? `Your saved locality is ${locality}. ` : ''}Add your six-digit PIN and locality in Profile to make this feed local.</p>}
+      {loading && <p role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-charcoal/55">Loading local issues…</p>}
+      {!loading && issues.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center"><p className="font-display font-bold text-charcoal">No public issues {pin ? `for PIN ${pin}` : 'yet'}</p><p className="mt-1 text-sm text-charcoal/60">Use Report to pour the first Chai for a civic problem in your area.</p></div>}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
         {issues.map((issue) => (
           <ChaiCard key={issue.id} issue={issue} />
@@ -82,40 +73,26 @@ const TABS = ['Hottest', 'Rising', 'Nearby', 'Unresolved'] as const
 export function ChaiTapriView() {
   const [tab, setTab] = useState<(typeof TABS)[number]>('Hottest')
   const [issues, setIssues] = useState<Array<IssueRecord & { recentReports?: number; recentSupport?: number }>>([])
-  const [pin, setPin] = useState('')
-  const [locality, setLocality] = useState('')
-  const { user } = useAuth()
+  const { pin, locality } = useServiceArea()
 
   useEffect(() => {
     let cancelled = false
-
-    const load = async () => {
-      try {
-        if (user?.demo || !user) {
-          const saved = localStorage.getItem(`civicchai_profile_settings:${user?.id ?? 'guest'}`)
-          if (saved) { const parsed = JSON.parse(saved); if (!cancelled) { setPin(parsed.preferred_pin ?? ''); setLocality(parsed.locality ?? '') } }
-        } else {
-          const profile = await civicFetch('/api/profile').then((response) => response.ok ? response.json() : null)
-          if (!cancelled && profile?.profile) { setPin(profile.profile.preferred_pin ?? ''); setLocality(profile.profile.locality ?? '') }
-        }
-        const response = await fetch('/api/public/trending')
-        if (!response.ok) throw new Error('Failed')
-        const payload = await response.json()
-        if (!cancelled) setIssues(Array.isArray(payload.issues) ? payload.issues : [])
-      } catch { if (!cancelled) setIssues([]) }
-    }
-    void load()
-
+    fetch('/api/public/trending')
+      .then((response) => response.ok ? response.json() : Promise.reject(new Error('Failed')))
+      .then((payload) => {
+        if (!cancelled) setIssues(Array.isArray(payload.issues) ? payload.issues.filter((issue: IssueRecord) => issue.status !== 'Duplicate') : [])
+      })
+      .catch(() => { if (!cancelled) setIssues([]) })
     return () => {
       cancelled = true
     }
-  }, [user?.id, user?.demo])
+  }, [])
 
   const base = tab === 'Nearby' ? pin ? issues.filter((issue) => issue.pin === pin) : [] : issues
   const selected = tab === 'Unresolved' ? base.filter((issue) => !['Resolved', 'Community Verified', 'Closed', 'Duplicate'].includes(issue.status)) : base
   const ranked = [...selected].sort((a, b) => {
     if (tab === 'Rising') return ((b.recentReports ?? 0) * 2 + (b.recentSupport ?? 0)) - ((a.recentReports ?? 0) * 2 + (a.recentSupport ?? 0)) || b.createdAt.localeCompare(a.createdAt)
-    if (tab === 'Hottest') return ((b.priorityScore ?? 0) * 0.45 + b.chaiHeat * 0.35 + Math.log2(b.reports + 1) * 5) - ((a.priorityScore ?? 0) * 0.45 + a.chaiHeat * 0.35 + Math.log2(a.reports + 1) * 5)
+    if (tab === 'Hottest') return hottestScore(b) - hottestScore(a)
     return b.createdAt.localeCompare(a.createdAt)
   })
   return (
@@ -181,8 +158,9 @@ export function ChaiTapriView() {
 const MY_TABS = ['Filed', 'Tracking', 'Upvoted', 'Followed', 'Resolved'] as const
 
 export function MyCharchaView() {
-  const { user } = useAuth()
+  const { user, isHydrated } = useAuth()
   const [tab, setTab] = useState<(typeof MY_TABS)[number]>('Tracking')
+  const [syncMessage, setSyncMessage] = useState('')
   const [issues, setIssues] = useState<IssueRecord[]>([])
   const [active, setActive] = useState<IssueRecord | null>(null)
   const [drafts, setDrafts] = useState<OfflineIssueDraft[]>([])
@@ -193,14 +171,16 @@ export function MyCharchaView() {
   const [notificationsOpen, setNotificationsOpen] = useState(false)
 
   async function refreshMyChai() {
-    setDrafts(await listOfflineDrafts())
-    if (navigator.onLine) {
+    const pending = await listOfflineDrafts().catch(() => [])
+    setDrafts(pending)
+    if (!user) return
+    // Drafts are filed only through an authenticated, online submission.
+    if (navigator.onLine && pending.length) {
       setSyncing(true)
-      await syncOfflineDrafts(async (payload) => {
-        return submitIssuePayload(payload)
-      })
-      setDrafts(await listOfflineDrafts())
+      const result = await syncOfflineDrafts(async (payload) => submitIssuePayload(payload)).catch(() => ({ synced: 0, remaining: pending.length }))
+      setDrafts(await listOfflineDrafts().catch(() => []))
       setSyncing(false)
+      setSyncMessage(result.remaining ? `${result.synced} draft${result.synced === 1 ? '' : 's'} filed. ${result.remaining} could not be submitted yet; they stay on this device.` : `${result.synced} draft${result.synced === 1 ? '' : 's'} filed successfully.`)
     }
     const response = await civicFetch('/api/me/issues')
     if (response.ok) {
@@ -217,6 +197,7 @@ export function MyCharchaView() {
   }
 
   useEffect(() => {
+    if (!isHydrated) return
     let cancelled = false
     void refreshMyChai().catch(() => { if (!cancelled) setIssues([]) })
     const onOnline = () => { void refreshMyChai() }
@@ -226,7 +207,7 @@ export function MyCharchaView() {
       cancelled = true
       window.removeEventListener('online', onOnline)
     }
-  }, [user?.id])
+  }, [user?.id, isHydrated])
 
   const filteredIssues = issues.filter((issue) => {
     if (tab === 'Filed') return issue.myRelationship === 'filed'
@@ -257,6 +238,19 @@ export function MyCharchaView() {
     } catch (error) { setVerificationMessage(error instanceof Error ? error.message : 'Unable to record your response.') } finally { setVerificationBusy(false) }
   }
 
+  if (isHydrated && !user) {
+    return (
+      <div className="space-y-5">
+        {drafts.length > 0 && <p className="rounded-2xl border border-gold/50 bg-gold/10 p-4 text-sm text-charcoal/75">{drafts.length} offline {drafts.length === 1 ? 'draft is' : 'drafts are'} saved on this device and not yet filed. Sign in while online to submit {drafts.length === 1 ? 'it' : 'them'}.</p>}
+        <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center">
+          <p className="font-display text-lg font-bold text-charcoal">Sign in to track your Charcha</p>
+          <p className="mt-1 text-sm text-charcoal/60">Reports you file, support or follow appear here with their status timeline and notifications.</p>
+          <Link href="/login?next=/citizen" className="mt-4 inline-flex rounded-xl bg-chai px-5 py-2.5 text-sm font-semibold text-cream">Sign in</Link>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="space-y-5">
       <section className="overflow-hidden rounded-2xl border border-border bg-card">
@@ -284,9 +278,11 @@ export function MyCharchaView() {
       </div>
 
       {drafts.length > 0 && <section className="rounded-2xl border border-gold/50 bg-gold/10 p-4" aria-live="polite">
-        <div className="flex items-center justify-between gap-3"><h3 className="font-display font-bold text-charcoal">Pending sync on this device</h3><span className="text-xs text-charcoal/60">{syncing ? 'Syncing…' : `${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`}</span></div>
+        <div className="flex items-center justify-between gap-3"><h3 className="font-display font-bold text-charcoal">Pending sync on this device</h3><span className="text-xs text-charcoal/60">{syncing ? 'Syncing…' : `${drafts.length} ${drafts.length === 1 ? 'draft' : 'drafts'}`}</span></div><p className="mt-1 text-xs text-charcoal/60">These drafts are not filed yet. They are submitted automatically when you are online and signed in.</p>
         <ul className="mt-3 space-y-2">{drafts.map((draft) => <li key={draft.id} className="flex items-center justify-between gap-3 rounded-xl bg-card px-3 py-2"><span className="min-w-0"><span className="block truncate text-sm font-semibold">{draft.payload.title}</span><span className="text-xs text-charcoal/55">PIN {draft.payload.pin} · {draft.payload.locality}</span></span><span className="shrink-0 rounded-full bg-gold/20 px-2 py-1 text-[11px] font-semibold">Pending sync</span></li>)}</ul>
       </section>}
+
+      {syncMessage && <p role="status" className="rounded-xl bg-leaf/10 p-3 text-sm text-charcoal/75">{syncMessage}</p>}
 
       <div className="grid gap-5 lg:grid-cols-[1fr_1.2fr]">
         <div className="space-y-2">
@@ -300,7 +296,7 @@ export function MyCharchaView() {
               )}
             >
               <div className="min-w-0 flex-1">
-                <p className="font-mono text-xs text-charcoal/50">{issue.id}</p>
+                <p className="font-mono text-xs text-charcoal/50">{issue.documentId}</p>
                 <p className="truncate font-display font-bold text-charcoal">
                   {issue.title}
                 </p>
@@ -335,7 +331,7 @@ export function MyCharchaView() {
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-sm text-charcoal/60">
-            No issues are available in the live feed yet.
+            Select an issue to see its status timeline. Reports you file, support or follow appear here.
           </div>
         )}
       </div>
@@ -359,12 +355,12 @@ export function ProfileView() {
   const [saving, setSaving] = useState(false)
   useEffect(() => {
     let cancelled = false
-    const localKey = `civicchai_profile_settings:${user?.id ?? 'guest'}`
     try {
-      const stored = localStorage.getItem(localKey)
+      const stored = localStorage.getItem(localProfileKey(user?.id))
       if (stored && !cancelled) setProfile((current) => ({ ...current, ...JSON.parse(stored) }))
     } catch {}
-    if (!user?.demo) {
+    if (!user) return () => { cancelled = true }
+    if (!user.demo) {
       civicFetch('/api/profile').then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load profile.'))).then((payload) => {
         if (!cancelled && payload.profile) setProfile((current) => ({ ...current, ...payload.profile }))
       }).catch(() => {})
@@ -393,14 +389,16 @@ export function ProfileView() {
     event.preventDefault(); setSaving(true); setNotice('')
     const payload = { ...profile, preferred_language: language }
     try {
+      if (profile.preferred_pin && !/^\d{6}$/.test(profile.preferred_pin)) throw new Error('Preferred area PIN must contain six digits.')
       if (user?.demo || !user) {
-        localStorage.setItem(`civicchai_profile_settings:${user?.id ?? 'guest'}`, JSON.stringify(payload))
+        localStorage.setItem(localProfileKey(user?.id), JSON.stringify(payload))
       } else {
         const response = await civicFetch('/api/profile', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) })
         const data = await response.json()
         if (!response.ok) throw new Error(data.error ?? 'Unable to save profile.')
         setProfile((current) => ({ ...current, ...data.profile }))
       }
+      notifyProfileUpdated()
       setNotice('Profile and preferences saved.')
     } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to save profile.') } finally { setSaving(false) }
   }
@@ -473,15 +471,17 @@ export function ProfileView() {
           <label className="text-xs font-semibold text-charcoal/65">Preferred service-area PIN<input value={profile.preferred_pin} onChange={(event) => setProfile({ ...profile, preferred_pin: event.target.value.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
           <label className="text-xs font-semibold text-charcoal/65 sm:col-span-2">Locality<input value={profile.locality} onChange={(event) => setProfile({ ...profile, locality: event.target.value })} maxLength={120} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
         </div>
-        <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Notifications</legend>{(['in_app', 'email'] as const).map((key) => <label key={key} className="flex items-center gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={Boolean(profile.notification_preferences?.[key])} onChange={(event) => setProfile({ ...profile, notification_preferences: { ...profile.notification_preferences, [key]: event.target.checked } })} />{key === 'in_app' ? 'In-app status updates' : 'Email status updates (when email delivery is configured)'}</label>)}</fieldset>
+        <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Notifications</legend>{(['in_app', 'email'] as const).map((key) => <label key={key} className="flex items-center gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={key === 'in_app' ? profile.notification_preferences?.in_app !== false : Boolean(profile.notification_preferences?.[key])} onChange={(event) => setProfile({ ...profile, notification_preferences: { ...profile.notification_preferences, [key]: event.target.checked } })} />{key === 'in_app' ? 'In-app status updates' : 'Email status updates (when email delivery is configured)'}</label>)}</fieldset>
         <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Optional processing choices</legend>{([['online_ai', 'Allow optional cloud AI for complaint classification'], ['device_location', 'Allow device coordinates on a report when I explicitly attach them'], ['offline_storage', 'Allow pending report drafts to be stored on this device']] as const).map(([key, label]) => <label key={key} className="flex items-start gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={Boolean(profile.consent_preferences?.[key])} onChange={(event) => setProfile({ ...profile, consent_preferences: { ...profile.consent_preferences, [key]: event.target.checked } })} className="mt-1" />{label}</label>)}</fieldset>
         {notice && <p role="status" className="rounded-lg bg-muted p-3 text-sm">{notice}</p>}
         <button disabled={saving} className="rounded-lg bg-chai px-4 py-2.5 text-sm font-semibold text-cream disabled:opacity-50">{saving ? 'Saving…' : 'Save preferences'}</button>
       </form>
 
-      <section className="space-y-4 rounded-2xl border border-border bg-card p-6"><div><h2 className="font-display text-lg font-bold">Privacy & data rights</h2><p className="mt-1 text-sm leading-relaxed text-charcoal/65">CivicChai uses your profile, report text, selected location, evidence and discussion activity to route and track civic issues. You can request access, correction, erasure or raise a privacy grievance. Requests are recorded for review by the configured platform administrator.</p></div><form onSubmit={sendPrivacyRequest} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]"><label className="text-xs font-semibold text-charcoal/65">Request<select value={requestType} onChange={(event) => setRequestType(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="access">Access my data</option><option value="correction">Correct my data</option><option value="erasure">Request erasure</option><option value="grievance">Privacy grievance</option></select></label><label className="text-xs font-semibold text-charcoal/65">Details<textarea value={requestDetails} onChange={(event) => setRequestDetails(event.target.value)} maxLength={2000} rows={2} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label><button className="self-end rounded-lg border border-chai px-4 py-2 text-sm font-semibold text-chai">Send request</button></form>{requests.length > 0 && <ul className="space-y-2">{requests.map((request) => <li key={request.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-xs"><span>{request.request_type} · {new Date(request.created_at).toLocaleDateString()}</span><span className="font-semibold uppercase">{request.status}</span>{request.response_note && <span className="w-full text-charcoal/65">{request.response_note}</span>}</li>)}</ul>}<p className="text-[11px] leading-relaxed text-charcoal/45">The connected deployment must set its retention schedule and grievance contact. Avoid including sensitive information in free-text details.</p></section>
+      {!user && <section className="rounded-2xl border border-dashed border-border bg-card p-6 text-center"><p className="font-display font-bold">Sign in for data rights and content reports</p><p className="mt-1 text-sm text-charcoal/60">Guests can save a service area on this device. Access, correction, erasure and grievance requests are linked to a signed-in account.</p><Link href="/login?next=/citizen" className="mt-3 inline-flex rounded-xl bg-chai px-5 py-2.5 text-sm font-semibold text-cream">Sign in</Link></section>}
 
-      <section className="space-y-3 rounded-2xl border border-border bg-card p-6"><div><h2 className="font-display text-lg font-bold">Content reports & appeals</h2><p className="mt-1 text-sm text-charcoal/60">Track your reports about issues or comments. If a report was actioned or dismissed, you can ask for a review.</p></div>{moderationReports.length ? moderationReports.map((report) => <article key={report.id} className="rounded-xl bg-muted/70 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold capitalize">{report.reason?.replaceAll('_', ' ') ?? 'Content report'}</p><span className="text-xs font-semibold uppercase text-charcoal/55">{report.status}</span></div><p className="mt-1 text-xs text-charcoal/55">Submitted {new Date(report.created_at).toLocaleDateString('en-IN')} · reference {String(report.id).slice(0, 12)}</p>{report.moderator_note && <p className="mt-2 text-xs text-charcoal/70">Moderator response: {report.moderator_note}</p>}{report.appeal_details && <p className="mt-2 text-xs text-charcoal/70">Appeal: {report.appeal_details}</p>}{['actioned', 'dismissed'].includes(report.status) && <button onClick={() => setAppealTarget(report.id)} className="mt-2 text-xs font-semibold text-chai underline">Appeal this decision</button>}{appealTarget === report.id && <form onSubmit={sendModerationAppeal} className="mt-3 space-y-2"><label className="block text-xs font-medium">Why should this decision be reviewed?<textarea required minLength={5} maxLength={2000} rows={3} value={appealDetails} onChange={(event) => setAppealDetails(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-2 text-sm" /></label><div className="flex gap-2"><button className="rounded-lg bg-chai px-3 py-2 text-xs font-semibold text-cream">Send appeal</button><button type="button" onClick={() => { setAppealTarget(''); setAppealDetails('') }} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button></div></form>}</article>) : <p className="text-sm text-charcoal/55">No content reports are attached to this account yet.</p>}</section>
+      {user && <section className="space-y-4 rounded-2xl border border-border bg-card p-6"><div><h2 className="font-display text-lg font-bold">Privacy & data rights</h2><p className="mt-1 text-sm leading-relaxed text-charcoal/65">CivicChai uses your profile, report text, selected location, evidence and discussion activity to route and track civic issues. You can request access, correction, erasure or raise a privacy grievance. Requests are recorded for review by the configured platform administrator.</p></div><form onSubmit={sendPrivacyRequest} className="grid gap-3 sm:grid-cols-[1fr_2fr_auto]"><label className="text-xs font-semibold text-charcoal/65">Request<select value={requestType} onChange={(event) => setRequestType(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal"><option value="access">Access my data</option><option value="correction">Correct my data</option><option value="erasure">Request erasure</option><option value="grievance">Privacy grievance</option></select></label><label className="text-xs font-semibold text-charcoal/65">Details<textarea value={requestDetails} onChange={(event) => setRequestDetails(event.target.value)} maxLength={2000} rows={2} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" /></label><button className="self-end rounded-lg border border-chai px-4 py-2 text-sm font-semibold text-chai">Send request</button></form>{requests.length > 0 && <ul className="space-y-2">{requests.map((request) => <li key={request.id} className="flex flex-wrap justify-between gap-2 rounded-lg bg-muted px-3 py-2 text-xs"><span>{request.request_type} · {new Date(request.created_at).toLocaleDateString()}</span><span className="font-semibold uppercase">{request.status}</span>{request.response_note && <span className="w-full text-charcoal/65">{request.response_note}</span>}</li>)}</ul>}<p className="text-[11px] leading-relaxed text-charcoal/45">The connected deployment must set its retention schedule and grievance contact. Avoid including sensitive information in free-text details.</p></section>}
+
+      {user && <section className="space-y-3 rounded-2xl border border-border bg-card p-6"><div><h2 className="font-display text-lg font-bold">Content reports & appeals</h2><p className="mt-1 text-sm text-charcoal/60">Track your reports about issues or comments. If a report was actioned or dismissed, you can ask for a review.</p></div>{moderationReports.length ? moderationReports.map((report) => <article key={report.id} className="rounded-xl bg-muted/70 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><p className="text-sm font-semibold capitalize">{report.reason?.replaceAll('_', ' ') ?? 'Content report'}</p><span className="text-xs font-semibold uppercase text-charcoal/55">{report.status}</span></div><p className="mt-1 text-xs text-charcoal/55">Submitted {new Date(report.created_at).toLocaleDateString('en-IN')} · reference {String(report.id).slice(0, 12)}</p>{report.moderator_note && <p className="mt-2 text-xs text-charcoal/70">Moderator response: {report.moderator_note}</p>}{report.appeal_details && <p className="mt-2 text-xs text-charcoal/70">Appeal: {report.appeal_details}</p>}{['actioned', 'dismissed'].includes(report.status) && <button onClick={() => setAppealTarget(report.id)} className="mt-2 text-xs font-semibold text-chai underline">Appeal this decision</button>}{appealTarget === report.id && <form onSubmit={sendModerationAppeal} className="mt-3 space-y-2"><label className="block text-xs font-medium">Why should this decision be reviewed?<textarea required minLength={5} maxLength={2000} rows={3} value={appealDetails} onChange={(event) => setAppealDetails(event.target.value)} className="mt-1 w-full rounded-lg border border-border bg-background p-2 text-sm" /></label><div className="flex gap-2"><button className="rounded-lg bg-chai px-3 py-2 text-xs font-semibold text-cream">Send appeal</button><button type="button" onClick={() => { setAppealTarget(''); setAppealDetails('') }} className="rounded-lg border border-border px-3 py-2 text-xs">Cancel</button></div></form>}</article>) : <p className="text-sm text-charcoal/55">No content reports are attached to this account yet.</p>}</section>}
       <div className="grid gap-3 sm:grid-cols-3">{preferenceCards.map(({ Icon, title, text }) => <div key={title} className="rounded-xl border border-border bg-card p-4"><p className="flex items-center gap-2 text-sm font-semibold"><Icon className="h-4 w-4 text-chai" />{title}</p><p className="mt-2 text-xs leading-relaxed text-charcoal/60">{text}</p></div>)}</div>
     </div>
   )

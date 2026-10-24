@@ -21,10 +21,10 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 
 ## Required before real pilot submissions
 
-1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql` and `004_staff_mfa_rls.sql` in order (or import the complete `supabase/schema.sql` into a new project).
-2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready and `/api/system/health` reports the database connected.
+1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql`, `004_staff_mfa_rls.sql` and `005_pilot_workflow.sql` in order (or import the complete `supabase/schema.sql` into a new project).
+2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready (schema version 5) and `/api/system/health` reports the database connected.
 3. Rotate any Supabase service-role or Groq credentials that were shared outside the secret manager, and store the replacement only in deployment secrets. Never commit `.env.local`.
-4. Replace shared demo passwords, remove unused demos, provision individual staff accounts, set jurisdiction/department scope, and enroll each staff account in TOTP MFA. Use demo accounts only in a controlled pilot environment.
+4. Leave `NEXT_PUBLIC_CIVICCHAI_SHOW_DEMO_ACCOUNTS` unset so `/login` does not list shared credentials. Replace shared demo passwords, remove unused demos, provision individual staff accounts, set jurisdiction/department scope, and enroll each staff account in TOTP MFA. Use demo accounts only in a controlled pilot environment.
 5. Enter authority-approved, source-verified jurisdiction/hub/department/officer records, public contacts, lawful privacy notice, retention/deletion rules, and applicable legal/service-standard documents. Keep the registry unverified until the source is checked.
 6. Decide who operates moderation, privacy requests, duplicate reviews, assignment, escalation and incident response. Record the applicable response and escalation targets.
 7. Configure and test Twilio only if phone intake is part of this pilot. Confirm the callback URL, number, credentials, consent recording, DTMF fallback, correction and final readback.
@@ -36,8 +36,20 @@ Do not represent CivicChai as a statutory grievance, appeal or emergency channel
 
 Production issue and phone intake stay disabled unless `CIVICCHAI_PUBLIC_INTAKE_ENABLED=true`. Evidence uploads stay disabled unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable them only after the approved file-scanning or handling workflow is operating.
 
+## Pilot workflow decisions in this release
+
+- Web filing requires a signed-in account (citizen, or department staff recorded as `assisted` filing). Anonymous intake remains available only through the signed telephony webhook.
+- The department is derived on the server from the citizen-confirmed category; `keypad` is reserved for the IVR route.
+- Resolution needs a public resolution note (15+ characters) or an official `.gov.in`/`.nic.in` record; a supplied URL must still be official.
+- Joining a suggested duplicate adds one support and one corroborating report per account; reviewers still decide merges.
+- Moderation decisions require a documented note; only the reporter can move a report to `appealed`.
+- Authority administrators can verify or withdraw verification of existing registry records; only official-domain sources can be verified.
+- STREE's optional on-device model runs with a system prompt that forbids inventing laws, officials, contacts or deadlines, and is hidden on staff and sign-in screens.
+
 ## Local verification performed for this audit
 
 - TypeScript project check: `npm run typecheck -- --incremental false`.
-- Production build: `npm run build -- --webpack`.
-- The repository does not currently include an automated unit, integration, accessibility or security test suite. Passing a build does not replace the acceptance session above.
+- Unit tests: `npm test` (classification, scoring, duplicate safety, redaction, heatmap, timeline).
+- Production build: `npm run build`.
+- An API walkthrough of the 401208 scenario in local preview: filing, duplicate suggestion, join, acknowledge, resolve, citizen verification, close, timeline, moderation, privacy request and audit.
+- No browser, accessibility or security automation is included. Passing these checks does not replace the acceptance session above.

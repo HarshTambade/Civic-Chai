@@ -4,10 +4,8 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { civicFetch } from '@/lib/client-api'
 import type { IssueStatus } from '@/lib/types'
-import { TIMELINE_STEPS } from '@/lib/issue-helpers'
+import { TIMELINE_STEPS, timelineIndex } from '@/lib/issue-helpers'
 import { Check } from 'lucide-react'
-
-const ORDER: IssueStatus[] = TIMELINE_STEPS.map((s) => s.key)
 
 export function CivicTimeline({
   status,
@@ -27,13 +25,16 @@ export function CivicTimeline({
     }).catch(() => {})
     return () => { cancelled = true }
   }, [issueId])
-  const currentIndex = ORDER.indexOf(status)
+  const currentIndex = timelineIndex(status)
+  const closed = status === 'Closed'
   return (
     <div className={className}>
+    {status === 'Under Review' && <p className="mb-3 rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">Under review by the responsible office before assignment.</p>}
+    {status === 'Duplicate' && <p className="mb-3 rounded-lg bg-gold/15 px-3 py-2 text-xs text-chai">Linked to an existing issue as a duplicate. Progress is tracked on that issue.</p>}
     <ol className="space-y-0">
       {TIMELINE_STEPS.map((step, i) => {
-        const done = i < currentIndex
-        const current = i === currentIndex
+        const done = i < currentIndex || (closed && i === currentIndex)
+        const current = i === currentIndex && !closed
         const last = i === TIMELINE_STEPS.length - 1
         return (
           <li key={step.key} className="flex gap-3">
@@ -70,14 +71,14 @@ export function CivicTimeline({
                 {step.label}
               </p>
               {current && (
-                <p className="text-xs text-muted-foreground">In progress now</p>
+                <p className="text-xs text-muted-foreground">Current stage</p>
               )}
             </div>
           </li>
         )
       })}
     </ol>
-    {events.length > 0 && <ol aria-label="Recorded status events" className="mt-4 space-y-2 border-t border-border pt-3">{events.map((event) => <li key={event.id} className="border-l-2 border-terracotta/50 pl-3"><p className="text-xs font-semibold text-foreground">{event.old_status ? `${event.old_status} → ` : ''}{event.new_status}</p><p className="text-[10px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.note && <p className="mt-1 text-xs text-muted-foreground">{event.note}</p>}{event.evidence_url && <a href={event.evidence_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-medium text-primary underline">Open official resolution evidence</a>}</li>)}</ol>}
+    {events.length > 0 && <ol aria-label="Recorded status events" className="mt-4 space-y-2 border-t border-border pt-3">{events.map((event) => <li key={event.id} className="border-l-2 border-terracotta/50 pl-3"><p className="text-xs font-semibold text-foreground">{event.old_status ? `${event.old_status} → ` : ''}{event.new_status}</p><p className="text-[10px] text-muted-foreground">{new Date(event.created_at).toLocaleString()}</p>{event.note && <p className="mt-1 text-xs text-muted-foreground">{event.note}</p>}{event.evidence_url && <a href={event.evidence_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-medium text-primary underline">Open official resolution record</a>}</li>)}</ol>}
     </div>
   )
 }

@@ -6,13 +6,19 @@ import { ArrowRight, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import { useAuth } from '@/components/auth-provider'
 import { DEMO_ACCOUNTS, ROLE_LABELS } from '@/lib/roles'
-import { hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
+import { areDemoAccountsListed, hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
+
+/** Only same-site citizen paths are accepted as a post-sign-in destination. */
+function citizenReturnPath() {
+  const next = new URLSearchParams(window.location.search).get('next') ?? ''
+  return /^\/(citizen|issues\/|voice-agent)/.test(next) && !next.startsWith('//') ? next : '/citizen'
+}
 
 export function LoginPage() {
   const router = useRouter()
   const { login, register } = useAuth()
-  const [email, setEmail] = useState('operator@civicchai.local')
-  const [password, setPassword] = useState('CivicChai!2026')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
   const [name, setName] = useState('')
@@ -21,6 +27,7 @@ export function LoginPage() {
   const supabaseConfigured = hasSupabaseConfig()
   const localDemoEnabled = isLocalDemoModeEnabled()
   const canRegister = supabaseConfigured
+  const showDemoAccounts = areDemoAccountsListed()
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -30,10 +37,10 @@ export function LoginPage() {
       if (creatingAccount) {
         const account = await register({ email, password, name })
         if (!account) { setNotice('Check your email to confirm the account, then sign in.'); return }
-        router.replace('/citizen')
+        router.replace(citizenReturnPath())
       } else {
         const account = await login({ email, password })
-        router.replace(account.role === 'citizen' ? '/citizen' : account.demo ? '/control-room' : '/mfa')
+        router.replace(account.role === 'citizen' ? citizenReturnPath() : account.demo ? '/control-room' : '/mfa')
       }
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Unable to sign in')
@@ -44,7 +51,7 @@ export function LoginPage() {
 
   return (
     <main className="flex min-h-dvh items-center justify-center bg-sidebar px-4 py-8 text-sidebar-foreground">
-      <div className="w-full max-w-2xl rounded-2xl border border-sidebar-border bg-sidebar-accent p-6 shadow-2xl sm:p-8">
+      <div className={`w-full ${showDemoAccounts ? 'max-w-2xl' : 'max-w-md'} rounded-2xl border border-sidebar-border bg-sidebar-accent p-6 shadow-2xl sm:p-8`}>
         <div className="mb-7 flex items-center justify-center gap-3">
           <Logo showWordmark={false} />
           <div>
@@ -53,7 +60,7 @@ export function LoginPage() {
           </div>
         </div>
 
-        <div className="grid gap-7 md:grid-cols-[0.9fr_1.1fr]">
+        <div className={`grid gap-7 ${showDemoAccounts ? 'md:grid-cols-[0.9fr_1.1fr]' : ''}`}>
           <section>
             <h1 className="font-display text-2xl font-extrabold">{creatingAccount ? 'Create a citizen account' : 'Sign in'}</h1>
             <p className="mt-2 text-sm leading-relaxed text-sidebar-foreground/60">
@@ -79,12 +86,12 @@ export function LoginPage() {
             <p className="mt-4 flex items-start gap-2 text-xs leading-relaxed text-sidebar-foreground/50">
               <ShieldCheck className="mt-0.5 h-4 w-4 shrink-0 text-leaf" />
               {supabaseConfigured
-                ? 'Role access is read from each account’s Supabase profile. Local demo sessions are disabled while Supabase is connected.'
+                ? 'Role access is read from each account’s Supabase profile. Staff accounts are provisioned by an administrator and protected with an authenticator app.'
                 : localDemoEnabled ? 'Local demo sessions are for preview only. Configure Supabase Auth and seeded profiles for protected deployment.' : 'Production login is disabled until Supabase is configured.'}
             </p>
           </section>
 
-          {localDemoEnabled || supabaseConfigured ? <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
+          {showDemoAccounts ? <section className="rounded-xl border border-sidebar-border bg-sidebar/70 p-4">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-chai">Demo accounts · password: CivicChai!2026</h2>
             <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/45">
               {supabaseConfigured

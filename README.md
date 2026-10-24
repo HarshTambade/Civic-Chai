@@ -185,9 +185,10 @@ These distinctions matter when demonstrating the project or preparing a pilot:
 3. The local classifier suggests a category, issue label, language, department, severity, and summary. The citizen can review the proposed information before submission.
 4. If online processing is enabled and the citizen opts in, the server may request a Groq classification. Otherwise the local rules result is used.
 5. The duplicate checker can suggest similar issues with the same PIN. The citizen can join/support a matching issue or identify a distinct issue; duplicate consolidation remains reviewable.
-6. The report receives a document ID such as `CC-401208-2026-XXXXXXXX`, is recorded with an initial status, and appears in the citizen's tracking view.
-7. Authorized staff triage, assign, acknowledge, and update status. Status-changing actions are auditable in connected mode.
-8. After staff mark an issue resolved, a participating citizen can confirm resolution or report that work remains incomplete.
+6. The citizen confirms or corrects the suggested category; the server derives the department from the confirmed category. Filing requires a signed-in account so the report can be tracked and verified. Joining a suggested issue adds the citizen's support and an independent corroborating report.
+7. The report receives a document ID such as `CC-401208-2026-XXXXXXXX`, is recorded with an initial status, appears in the citizen's tracking view, and the composer shows a civic education card (department, jurisdiction, verified contacts and next steps).
+8. Authorized staff triage, assign, acknowledge, and update status. Status-changing actions are auditable in connected mode. Marking an issue resolved requires a public resolution note (at least 15 characters) or an official HTTPS `.gov.in`/`.nic.in` record.
+9. After staff mark an issue resolved, a participating citizen can confirm resolution or report that work remains incomplete.
 
 ### Review and resolve an issue
 
@@ -369,6 +370,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    - `supabase/migrations/002_civicchai_platform.sql`
    - `supabase/migrations/003_pilot_hardening.sql`
    - `supabase/migrations/004_staff_mfa_rls.sql`
+   - `supabase/migrations/005_pilot_workflow.sql`
 
    `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
 3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
@@ -419,6 +421,7 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
 | `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Production issue and phone intake | Set to `true` only after the authority and pilot owner approve the deployment and complete the readiness checklist. Production defaults to disabled. |
 | `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED` | Production evidence uploads | Set to `true` only after an approved malware scanning or file-handling workflow is active. Production defaults to disabled. |
+| `NEXT_PUBLIC_CIVICCHAI_SHOW_DEMO_ACCOUNTS` | Controlled connected demos only | When `true`, `/login` lists the shared demo accounts. Leave unset or `false` for a pilot; local preview always lists them. |
 | `ALLOW_DEMO_USER_SEED` | Exceptional production seeding only | Must be `1` to override the script's production guard. Avoid enabling in public environments. |
 
 Do not commit `.env.local`, service-role keys, provider tokens, or real citizen data.
@@ -499,6 +502,7 @@ An issue stores a public-facing document ID and description, original/normalized
 - `supabase/migrations/002_civicchai_platform.sql`: role/scope helpers, platform entities, RLS, storage, scoring and workflow functions.
 - `supabase/migrations/003_pilot_hardening.sql`: hardened server-side issue actions, role transition checks, geographic scope fields, and schema version marker.
 - `supabase/migrations/004_staff_mfa_rls.sql`: requires MFA for staff data access through both app routes and direct database API requests.
+- `supabase/migrations/005_pilot_workflow.sql`: adds the `Municipal Operations` fallback department, accepts a public resolution note in place of a mandatory official URL, records `closed_at`, and sets schema version 5 (checked by `/api/health`).
 - `supabase/schema.sql`: consolidated fresh-project schema.
 - `supabase/seed.sql`: synthetic demo jurisdictions/issues only.
 
@@ -543,7 +547,7 @@ Rodgers-SIH/
 
 Before a live pilot, the responsible authority and deployment team should:
 
-1. Apply all four migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
+1. Apply all five migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
 2. Use individual accounts with least-privilege role, department, and jurisdiction scopes. Change or remove shared demo credentials. Enroll staff in TOTP MFA.
 3. Populate and verify official jurisdiction, hub, department, officer/contact, legal-document, and optional service-target records from approved sources. Keep records unverified until reviewed.
 4. Approve privacy notices, consent language, data-retention/deletion rules, identity checks for data-rights requests, and the owners who fulfill those requests.
@@ -620,12 +624,13 @@ Do not mix local-browser and connected-mode expectations. Local demo sessions us
 
 ## Testing and validation
 
-The repository currently provides a TypeScript check and production build scripts but does not include a committed unit, integration, browser, accessibility, or security test runner.
+The repository provides a TypeScript check, a production build, and a unit test suite (`tests/`) for the domain logic: multilingual classification, language detection, priority/trust/Chai Heat scoring, duplicate geographic safety and hard negatives, public redaction, heatmap generalization and timeline states. The tests use Node's built-in test runner with TypeScript type stripping (Node 22.18 or later). There is no committed browser, accessibility or security test runner yet.
 
 Run the available checks from `Rodgers-SIH/`:
 
 ```bash
 pnpm typecheck
+pnpm test
 pnpm build
 pnpm dev
 ```
@@ -717,7 +722,7 @@ When changing a feature:
 6. Treat AI output as a suggestion. Do not silently convert a model result into a legal, identity, routing, or enforcement decision.
 7. Add auditability to staff actions and explicit error messages to user-facing failures.
 8. Keep demo and seed data synthetic and visibly labeled.
-9. Run `pnpm typecheck`; run `pnpm build` when changing routes, environment handling, or server/client boundaries.
+9. Run `pnpm typecheck` and `pnpm test`; run `pnpm build` when changing routes, environment handling, or server/client boundaries.
 10. Do not commit `.env.local`, service-role keys, provider tokens, real citizen data, private evidence, or unverified official claims.
 
 ### Database change rule
@@ -745,10 +750,11 @@ pnpm dev                 # Start the Next.js development server
 pnpm build               # Build the application
 pnpm start               # Serve a production build
 pnpm typecheck            # Run TypeScript without emitting files
+pnpm test                 # Run the domain-logic unit tests
 pnpm seed:demo-users      # Provision demo Supabase Auth users (requires server credentials)
 ```
 
-The repository currently does not define an automated unit, integration, accessibility, or security test script. `typecheck` is a static type check, not a test suite. Avoid using real citizen records or official contact data in local development.
+`pnpm test` covers pure domain logic only; integration, accessibility and security testing remain manual acceptance work. Avoid using real citizen records or official contact data in local development.
 
 When changing database-backed behavior, update the ordered migration(s), consolidated `supabase/schema.sql` when appropriate, and the relevant setup documentation together. Keep seed records synthetic and visibly labeled. Do not add secrets, unverified government facts, or private citizen data to the repository.
 

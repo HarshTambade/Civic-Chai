@@ -1,4 +1,4 @@
-import { calculatePriorityScore, calculateTrustScore } from '@/lib/scoring'
+import { calculatePriorityScore, calculateTrustScore, type DuplicateCandidate } from '@/lib/scoring'
 import type { IssuePriority } from '@/lib/types'
 
 export type ComplaintAnalysis = {
@@ -31,23 +31,57 @@ export type ComplaintAnalysis = {
   }
   duplicateIssueId?: string
   duplicateIssueFound: boolean
+  duplicateCandidates?: DuplicateCandidate[]
 }
 
+// `words` are strong signals for a category; `context` words (such as "road" or "water"
+// used to describe a location) only break ties, so they cannot override a strong match.
 const TAXONOMY = [
-  { category: 'Public Lighting', issue: 'Streetlight outage', department: 'Municipal Public Lighting', words: /street.?lights?|street lamps?|bulb|electric light|light(s)? (is|are|not|off)|power outage|दीप(क)?|बत्ती|स्ट्रीट ?लाइट|दिवा|रस्त्यावरील दिवे/i, severity: 48 },
-  { category: 'Sanitation', issue: 'Garbage overflow', department: 'Solid Waste Management', words: /garbage|rubbish|trash|waste|dump|litter|कचरा|घनकचरा|कचरापेटी|कचऱ्याचा/i, severity: 42 },
-  { category: 'Roads & Potholes', issue: 'Road damage or pothole', department: 'PWD — Roads Division', words: /pothole|road damage|broken road|cracked road|खड्डा|गड्ढा|रस्ता|सड़क|रस्त्यावर/i, severity: 56 },
-  { category: 'Water Supply', issue: 'Water supply disruption', department: 'Water Works Department', words: /water supply|no water|water leak|pipeline|पाणी|पानी|गळती|जलापूर्ति/i, severity: 52 },
-  { category: 'Drainage', issue: 'Drainage or sewage issue', department: 'Drainage & Sewerage', words: /drain|sewer|sewage|manhole|flood|नाला|गटार|सांडपाणी|नाली|सीवर/i, severity: 57 },
-  { category: 'Traffic', issue: 'Traffic or road safety issue', department: 'Traffic Police / PWD', words: /traffic|signal|crossing|road safety|जाम|वाहतूक|सिग्नल/i, severity: 45 },
-  { category: 'Public Health', issue: 'Public health concern', department: 'Public Health Office', words: /mosquito|disease|contamination|health hazard|मच्छर|रोग|दूषित|आरोग्य/i, severity: 62 },
+  { category: 'Public Lighting', issue: 'Streetlight outage', department: 'Municipal Public Lighting', words: /street.?lights?|street ?lamps?|lamp ?post|bulb|electric light|lights? (is |are )?(not working|off|band|out)|light band|batti|बत्ती|स्ट्रीट ?लाइट|पथदीप|दिवे बंद|दिवा|रस्त्यावरील दिवे/i, context: /lights?|power outage|andhera|अंधेरा|अंधार/i, severity: 48 },
+  { category: 'Sanitation', issue: 'Garbage overflow', department: 'Solid Waste Management', words: /garbage|rubbish|trash|waste|dump|litter|kachra|kachara|कचरा|घनकचरा|कचरापेटी|कचऱ्याचा/i, context: /smell|stink|बदबू|दुर्गंधी/i, severity: 42 },
+  { category: 'Roads & Potholes', issue: 'Road damage or pothole', department: 'PWD — Roads Division', words: /pothole|road damage|broken road|cracked road|khadda|gaddha|खड्डा|खड्डे|गड्ढा|गड्ढे/i, context: /road|sadak|rasta|रस्ता|रस्त्यावर|सड़क/i, severity: 56 },
+  { category: 'Water Supply', issue: 'Water supply disruption', department: 'Water Works Department', words: /water supply|no water|water leak|pipeline|pa+ni nahi|पाणी (येत )?नाही|पानी नहीं|जलापूर्ति|गळती/i, context: /water|pa+ni|पाणी|पानी|नल/i, severity: 52 },
+  { category: 'Drainage', issue: 'Drainage or sewage issue', department: 'Drainage & Sewerage', words: /drain|sewer|sewage|manhole|gutter|naali|nala|नाला|गटार|सांडपाणी|नाली|सीवर/i, context: /flood|waterlogg|पाणी साचले|जलभराव/i, severity: 57 },
+  { category: 'Traffic', issue: 'Traffic or road safety issue', department: 'Traffic Police / PWD', words: /traffic|signal|zebra crossing|road safety|जाम|वाहतूक|सिग्नल/i, context: /crossing|accident/i, severity: 45 },
+  { category: 'Public Health', issue: 'Public health concern', department: 'Public Health Office', words: /mosquito|disease|contamination|health hazard|dengue|malaria|मच्छर|डास|रोग|दूषित|आरोग्य/i, context: /fever|बुखार|ताप/i, severity: 62 },
 ] as const
+
+function matchCount(pattern: RegExp, text: string) {
+  return text.match(new RegExp(pattern.source, 'gi'))?.length ?? 0
+}
+
+/** Picks the category with the strongest keyword evidence; earlier entries win ties. */
+function selectCategory(text: string) {
+  let best: (typeof TAXONOMY)[number] | undefined
+  let bestScore = 0
+  for (const item of TAXONOMY) {
+    const score = matchCount(item.words, text) * 2 + matchCount(item.context, text)
+    if (score > bestScore) { best = item; bestScore = score }
+  }
+  return best
+}
+
+export const GENERAL_CATEGORY = { category: 'General civic issue', issue: 'Civic service request', department: 'Municipal Operations' } as const
+
+/** Citizen-confirmable categories and the department each one routes to. */
+export const CATEGORY_OPTIONS: ReadonlyArray<{ category: string; issue: string; department: string }> = [
+  ...TAXONOMY.map(({ category, issue, department }) => ({ category, issue, department })),
+  GENERAL_CATEGORY,
+]
+
+export const DEPARTMENT_OPTIONS: readonly string[] = [...new Set(CATEGORY_OPTIONS.map((option) => option.department))]
+
+export function categoryOption(category: string) {
+  return CATEGORY_OPTIONS.find((option) => option.category === category) ?? GENERAL_CATEGORY
+}
 
 function detectLanguage(text: string, selected: string) {
   if (selected !== 'Auto Detect') return selected
   if (/\p{Script=Devanagari}/u.test(text)) {
-    if (/(आहे|पाणी|कचरा|रस्ता|गटार|दिवा|मध्ये|नाही)/u.test(text)) return 'Marathi'
-    return 'Hindi'
+    // Compare grammatical words unique to each language; nouns such as कचरा are shared.
+    const marathi = matchCount(/आहे|आहेत|नाही|मध्ये|आमच्या|आमचा|आणि|झाले|झाला|पाहिजे|येत|होत|च्या|पाणी|गटार/u, text)
+    const hindi = matchCount(/है|हैं|नहीं|में|हमारे|हमारा|और|गया|गई|रहा|रही|पानी|का |की |के /u, text)
+    return marathi > hindi ? 'Marathi' : 'Hindi'
   }
   if (/\b(hai|hain|mein|ki|ka|ke|band|paani|khadda|kaccha)\b/i.test(text)) return 'Hinglish'
   return 'English'
@@ -63,13 +97,13 @@ function inferSeverity(text: string, baseline: number) {
 export function analyzeComplaint(input: string, selectedLanguage = 'Auto Detect', options: { pin?: string; locality?: string; hasEvidence?: boolean } = {}): ComplaintAnalysis {
   const original = input.trim()
   const language = detectLanguage(original, selectedLanguage)
-  const selected = TAXONOMY.find((item) => item.words.test(original))
+  const selected = selectCategory(original)
   const pin = options.pin?.match(/^\d{6}$/)?.[0] ?? original.match(/\b\d{6}\b/)?.[0] ?? ''
   const knownLocation = original.match(/(?:near|at|on|by|station road|market square|school|lane|nearby)\s+([\p{L}\d][\p{L}\d\s-]{2,35})/iu)?.[1]?.trim()
   const locality = options.locality?.trim() || knownLocation || 'Locality to confirm'
-  const category = selected?.category ?? 'General civic issue'
-  const issue = selected?.issue ?? 'Civic service request'
-  const department = selected?.department ?? 'Municipal Operations'
+  const category = selected?.category ?? GENERAL_CATEGORY.category
+  const issue = selected?.issue ?? GENERAL_CATEGORY.issue
+  const department = selected?.department ?? GENERAL_CATEGORY.department
   const severity = inferSeverity(original, selected?.severity ?? 38)
   const priority = calculatePriorityScore({ severity, reports: 1, hasEvidence: options.hasEvidence })
   const trust = calculateTrustScore({ hasEvidence: options.hasEvidence, locationProvided: Boolean(options.pin || pin), textLength: original.length })
@@ -118,9 +152,9 @@ export async function analyzeComplaintWithGroq(input: string, selectedLanguage =
     const payload = await response.json()
     const content = payload?.choices?.[0]?.message?.content
     const parsed = typeof content === 'string' ? JSON.parse(content) as Record<string, unknown> : {}
-    const allowed = new Set<string>([...TAXONOMY.map((item) => item.category), 'General civic issue'])
+    const allowed = new Set<string>(CATEGORY_OPTIONS.map((item) => item.category))
     const category = typeof parsed.category === 'string' && allowed.has(parsed.category) ? parsed.category : fallback.category
-    const mapped = TAXONOMY.find((item) => item.category === category)
+    const mapped = categoryOption(category)
     const confidence = typeof parsed.confidence === 'number' ? Math.max(0, Math.min(100, Math.round(parsed.confidence))) : fallback.confidence
     return {
       ...fallback,

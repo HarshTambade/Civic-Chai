@@ -78,7 +78,7 @@ export function Hero() {
           <div className="mt-4 rounded-2xl border border-border bg-card p-4 shadow-md sm:absolute sm:-bottom-6 sm:-left-6 sm:mt-0 sm:w-72">
             <div className="flex items-center justify-between">
               <span className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">
-                Chai Heat
+                Chai Heat · example
               </span>
               <span className="text-xs font-medium text-heat">
                 {heatLabel(heat)}

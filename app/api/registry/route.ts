@@ -16,9 +16,9 @@ export async function GET(request: Request) {
   const auth = await authorizeRoles(request, ['authority_admin'])
   if (auth.response) return auth.response
   const service = getSupabaseServiceClient()
-  if (!service) return NextResponse.json({ hubs: [], officers: [], documents: [] })
+  if (!service) return NextResponse.json({ error: 'The authority registry needs a connected Supabase project with the server-only key. Local preview does not store registry records.' }, { status: 503 })
   const pin = auth.actor?.pin
-  if (!pin) return NextResponse.json({ hubs: [], officers: [], documents: [] })
+  if (!pin) return NextResponse.json({ error: 'Your account has no authorized jurisdiction PIN. Ask the system administrator to set your profile scope.' }, { status: 403 })
   const { data: jurisdictions, error: jurisdictionError } = await service.from('jurisdictions').select('id,name,level,pin,source_url,source_version,is_verified,verified_at').eq('pin', pin).order('level')
   if (jurisdictionError) return NextResponse.json({ error: 'Jurisdiction registry schema is not ready.' }, { status: 503 })
   const jurisdictionIds = (jurisdictions ?? []).map((item) => item.id)
@@ -35,6 +35,44 @@ export async function GET(request: Request) {
   const firstError = hubs.error ?? officers.error ?? documents.error ?? slaTargets.error
   if (firstError) return NextResponse.json({ error: 'Registry schema is not ready. Apply the CivicChai migrations first.' }, { status: 503 })
   return NextResponse.json({ jurisdictions: jurisdictions ?? [], hubs: hubs.data ?? [], officers: officers.data ?? [], documents: documents.data ?? [], sla_targets: slaTargets.data ?? [] })
+}
+
+const REGISTRY_TABLES = { jurisdiction: 'jurisdictions', hub: 'authority_hubs', officer: 'officer_registry', document: 'official_documents', sla: 'sla_targets' } as const
+
+/** Marks an existing, in-scope registry record verified (or withdraws verification) after source review. */
+export async function PATCH(request: Request) {
+  const auth = await authorizeRoles(request, ['authority_admin'])
+  if (auth.response) return auth.response
+  const service = getSupabaseServiceClient()
+  if (!service) return NextResponse.json({ error: 'Registry verification requires the server-only Supabase service key.' }, { status: 503 })
+  try {
+    const body = await request.json()
+    const kind = String(body.kind ?? '') as keyof typeof REGISTRY_TABLES
+    const table = REGISTRY_TABLES[kind]
+    const id = String(body.id ?? '')
+    if (!table || !/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Choose a registry record to verify.' }, { status: 400 })
+    const pin = auth.actor?.pin
+    if (!pin) return NextResponse.json({ error: 'Your account has no authorized jurisdiction.' }, { status: 403 })
+    const { data: jurisdictions } = await service.from('jurisdictions').select('id').eq('pin', pin)
+    const jurisdictionIds = (jurisdictions ?? []).map((row) => row.id)
+    const { data: record, error: readError } = await service.from(table).select('*').eq('id', id).maybeSingle()
+    if (readError || !record) return NextResponse.json({ error: 'Registry record not found.' }, { status: 404 })
+    const inScope = 'pin' in record && record.pin ? record.pin === pin : jurisdictionIds.includes(record.jurisdiction_id)
+    if (!inScope) return NextResponse.json({ error: 'Registry record is outside your jurisdiction.' }, { status: 404 })
+    const verified = body.is_verified === true
+    if (verified && (!isSecurePublicUrl(record.source_url) || !/(\.gov\.in|\.nic\.in)$/i.test(new URL(record.source_url).hostname))) {
+      return NextResponse.json({ error: 'Only records sourced from an official HTTPS .gov.in or .nic.in page can be marked verified.' }, { status: 400 })
+    }
+    const patch = table === 'sla_targets'
+      ? { is_verified: verified }
+      : { is_verified: verified, verified_by: verified ? auth.actor!.id : null, verified_at: verified ? new Date().toISOString() : null }
+    const { data, error } = await service.from(table).update(patch).eq('id', id).select('*').single()
+    if (error) throw error
+    await service.from('audit_logs').insert({ actor_id: auth.actor!.id, action: `registry.${kind}_${verified ? 'verified' : 'unverified'}`, details: { id, source_url: record.source_url } })
+    return NextResponse.json({ record: data })
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to update registry verification.' }, { status: 400 })
+  }
 }
 
 export async function POST(request: Request) {
@@ -70,8 +108,10 @@ export async function POST(request: Request) {
       table = 'authority_hubs'
       record = { ...base, name: String(body.name ?? '').slice(0, 160), address: String(body.address ?? '').slice(0, 300), pin, ward: String(body.ward ?? '').slice(0, 100), municipality: String(body.municipality ?? '').slice(0, 120), district: String(body.district ?? '').slice(0, 120), state: String(body.state ?? '').slice(0, 100), public_phone: String(body.public_phone ?? '').slice(0, 40) || null, public_email: String(body.public_email ?? '').slice(0, 160) || null }
       } else if (kind === 'officer') {
+      const { data: department } = await service.from('departments').select('id').eq('name', String(body.department ?? '').trim()).limit(1).maybeSingle()
+      if (!department) return NextResponse.json({ error: 'Use a department name from the configured department registry so this officer can be matched to issues.' }, { status: 400 })
       table = 'officer_registry'
-      record = { ...base, name: String(body.name ?? '').slice(0, 120), role: String(body.role ?? '').slice(0, 120), department: String(body.department ?? '').slice(0, 120), pin, hub: String(body.hub ?? '').slice(0, 160), public_phone: String(body.public_phone ?? '').slice(0, 40) || null, public_email: String(body.public_email ?? '').slice(0, 160) || null }
+      record = { ...base, name: String(body.name ?? '').slice(0, 120), role: String(body.role ?? '').slice(0, 120), department: String(body.department ?? '').trim().slice(0, 120), pin, hub: String(body.hub ?? '').slice(0, 160), public_phone: String(body.public_phone ?? '').slice(0, 40) || null, public_email: String(body.public_email ?? '').slice(0, 160) || null }
       } else if (kind === 'document') {
       table = 'official_documents'
       record = { ...base, title: String(body.title ?? '').slice(0, 200), authority: String(body.authority ?? '').slice(0, 160), document_number: String(body.document_number ?? '').slice(0, 100) || null, published_at: body.published_at ? new Date(String(body.published_at)).toISOString() : new Date().toISOString(), effective_at: body.effective_at ? new Date(String(body.effective_at)).toISOString() : null, version: String(body.version ?? '1').slice(0, 40), checksum: String(body.checksum ?? '').slice(0, 128) || null }

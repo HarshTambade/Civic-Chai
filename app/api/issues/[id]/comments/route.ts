@@ -21,7 +21,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
   try {
     const { id } = await params
     const body = await request.json()
-    const comment = await addIssueComment(id, String(body.body ?? ''), actor.id, actor.name, client)
+    const comment = await addIssueComment(id, String(body.body ?? ''), actor.id, client)
     if (!comment) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
     return NextResponse.json({ comment }, { status: 201 })
   } catch (error) {

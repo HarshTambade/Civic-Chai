@@ -1,3 +1,6 @@
+/** Migration level this release requires (see supabase/migrations/005_pilot_workflow.sql). */
+export const REQUIRED_SCHEMA_VERSION = 5
+
 /** Public intake stays closed in production until the pilot owner enables it. */
 export function isPublicIntakeEnabled() {
   return process.env.NODE_ENV !== 'production' || process.env.CIVICCHAI_PUBLIC_INTAKE_ENABLED === 'true'

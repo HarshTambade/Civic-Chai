@@ -63,13 +63,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             if (mounted) { setUser(null); setMfaVerified(false) }
             return
           }
-          void supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle().then(async ({ data: profile }) => {
-            const nextUser = userFromProfile(session.user, profile)
-            const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
-              ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
-              : { data: { currentLevel: 'aal2' as const } }
-            if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
-          })
+          // Supabase holds an auth lock during this callback; defer further client calls so they cannot deadlock it.
+          setTimeout(() => {
+            void supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle().then(async ({ data: profile }) => {
+              const nextUser = userFromProfile(session.user, profile)
+              const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
+                ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
+                : { data: { currentLevel: 'aal2' as const } }
+              if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
+            })
+          }, 0)
         })
         authSubscription = authState.subscription
       } else if (isLocalDemoModeEnabled()) {

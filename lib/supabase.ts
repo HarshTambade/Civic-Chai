@@ -44,6 +44,11 @@ export function isLocalDemoModeEnabled() {
   return process.env.NODE_ENV !== 'production' && !hasSupabaseConfig()
 }
 
+/** Shared demo credentials are listed only in local preview or when a controlled demo deployment opts in. */
+export function areDemoAccountsListed() {
+  return isLocalDemoModeEnabled() || process.env.NEXT_PUBLIC_CIVICCHAI_SHOW_DEMO_ACCOUNTS === 'true'
+}
+
 export function getSupabaseServiceClient() {
   if (typeof window !== 'undefined') return null
   const url = process.env.SUPABASE_URL ?? process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_SUPABASE_URL

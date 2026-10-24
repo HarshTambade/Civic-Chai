@@ -203,7 +203,8 @@ export function GovPreview() {
             <ArrowRight className="h-4 w-4" />
           </Link>
         </div>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-2 gap-3" aria-label="Illustrative dashboard figures, not live data">
+          <p className="col-span-2 text-[11px] font-semibold uppercase tracking-wide text-charcoal/45">Illustrative dashboard · not live pilot data</p>
           {[
             { k: 'Total Issues', v: '4,218', c: 'text-charcoal' },
             { k: 'Critical', v: '46', c: 'text-heat' },

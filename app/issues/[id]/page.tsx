@@ -32,6 +32,29 @@ function Factors({ title, factors }: { title: string; factors?: Record<string, n
   )
 }
 
+/** SOP civic education card: every answer comes from the classification or the verified registry, never a guess. */
+function EducationCard({ issue, registry }: { issue: IssueRecord; registry: RegistryData }) {
+  const officer = registry.officers?.find((record) => record.department === issue.department)
+  const hub = registry.hubs?.[0]
+  const reference = registry.documents?.[0]
+  const rows: Array<[string, React.ReactNode]> = [
+    ['What is the problem?', `${issue.category} · ${issue.title}`],
+    ['Who handles it?', `${issue.department} (suggested route; staff confirm it)`],
+    ['Who is the official?', officer ? `${officer.role}, ${officer.department}` : 'Not yet published by the authority'],
+    ['Where is the hub?', hub ? `${hub.name}, ${hub.address}` : 'No verified hub registered for this PIN'],
+    ['What rule applies?', reference ? <a href={reference.source_url} target="_blank" rel="noreferrer" className="text-chai underline">{reference.title}</a> : 'No verified reference registered'],
+    ['What happens next?', 'Acknowledgement → assignment → field action → resolution. People who filed, supported or follow it can then confirm or dispute the outcome in My Charcha.'],
+  ]
+  return (
+    <section aria-label="Civic education" className="rounded-2xl border border-border bg-card p-4">
+      <p className="text-sm font-semibold">Know your Charcha</p>
+      <dl className="mt-3 space-y-3">{rows.map(([question, answer]) => <div key={question}><dt className="text-[11px] font-semibold uppercase tracking-wide text-charcoal/45">{question}</dt><dd className="mt-0.5 text-xs leading-relaxed text-charcoal/75">{answer}</dd></div>)}</dl>
+      <p className="mt-3 text-[10px] leading-relaxed text-charcoal/45">Legal information is educational and not legal advice. CivicChai is not an emergency service or a statutory appeal channel.</p>
+      <Link href="/citizen" className="mt-3 inline-flex text-sm font-semibold text-chai underline">Open citizen portal</Link>
+    </section>
+  )
+}
+
 export default function IssueReportPage() {
   const params = useParams<{ id: string }>()
   const id = Array.isArray(params.id) ? params.id[0] : params.id
@@ -96,6 +119,8 @@ export default function IssueReportPage() {
             </div>
           </header>
 
+          {issue.duplicateOf && <p className="mt-5 rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm text-charcoal/75">A reviewer linked this report to an existing issue. Follow progress on the <Link href={`/issues/${encodeURIComponent(issue.duplicateOf)}`} className="font-semibold text-chai underline">canonical issue report</Link>.</p>}
+
           <div className="mt-5 grid gap-5 lg:grid-cols-[minmax(0,1fr)_330px]">
             <div className="space-y-5">
               <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Complaint summary</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-charcoal/75">{issue.description}</p><p className="mt-3 text-xs leading-relaxed text-charcoal/50">Original-language text and any personal details are withheld from this public page. Authorized case workers can access the protected report record.</p></section>
@@ -110,7 +135,7 @@ export default function IssueReportPage() {
               </section>
               <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Tracking history</h2><div className="mt-4"><CivicTimeline status={issue.status} issueId={issue.id} /></div></section>
             </div>
-            <aside className="space-y-4"><ChaiCard issue={issue} /><div className="rounded-2xl border border-border bg-card p-4"><p className="text-sm font-semibold">What happens next</p><p className="mt-2 text-xs leading-relaxed text-charcoal/60">The responsible office can acknowledge, assign, act and record a resolution. Citizens who filed, supported or follow the issue can confirm or dispute a reported resolution in My Charcha.</p><Link href="/citizen" className="mt-3 inline-flex text-sm font-semibold text-chai underline">Open citizen portal</Link></div></aside>
+            <aside className="space-y-4"><ChaiCard issue={issue} /><EducationCard issue={issue} registry={registry} /></aside>
           </div>
         </>}
       </div>

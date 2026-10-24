@@ -18,15 +18,14 @@ import { MapPin } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
 import type { IssueRecord } from '@/lib/types'
 import { useLanguage } from '@/components/language-provider'
-import { useAuth } from '@/components/auth-provider'
-import { civicFetch } from '@/lib/client-api'
 import { PwaInstallButton } from '@/components/pwa-install-button'
+import { useServiceArea } from './use-service-area'
 
 type Tab = 'home' | 'tapri' | 'charcha' | 'profile'
 
 export function CitizenApp() {
   const { t } = useLanguage()
-  const { user } = useAuth()
+  const area = useServiceArea()
   const NAV: { key: Tab; label: string; icon: React.ElementType }[] = [
     { key: 'home', label: t.citizenApp.tabs[0], icon: Home },
     { key: 'tapri', label: t.citizenApp.tabs[1], icon: Flame },
@@ -37,7 +36,6 @@ export function CitizenApp() {
   const [tab, setTab] = useState<Tab>('home')
   const [composerOpen, setComposerOpen] = useState(false)
   const [localHeat, setLocalHeat] = useState<number | null>(null)
-  const [area, setArea] = useState({ pin: '', locality: '' })
   const [online, setOnline] = useState(true)
 
   useEffect(() => {
@@ -58,24 +56,11 @@ export function CitizenApp() {
 
   useEffect(() => {
     let cancelled = false
-    const loadArea = async () => {
-      if (user?.demo || !user) {
-        try { const saved = localStorage.getItem(`civicchai_profile_settings:${user?.id ?? 'guest'}`); if (saved) { const parsed = JSON.parse(saved); if (!cancelled) setArea({ pin: parsed.preferred_pin ?? '', locality: parsed.locality ?? '' }) } } catch {}
-      } else {
-        try { const response = await civicFetch('/api/profile'); const payload = await response.json(); if (!cancelled && payload.profile) setArea({ pin: payload.profile.preferred_pin ?? '', locality: payload.profile.locality ?? '' }) } catch {}
-      }
-    }
-    void loadArea()
-    return () => { cancelled = true }
-  }, [user?.id, user?.demo])
-
-  useEffect(() => {
-    let cancelled = false
     fetch(`/api/public/issues${area.pin ? `?pin=${encodeURIComponent(area.pin)}` : ''}`)
       .then((res) => (res.ok ? res.json() : Promise.reject(new Error('Failed'))))
       .then((payload) => {
         if (cancelled) return
-        const issues: IssueRecord[] = Array.isArray(payload?.issues) ? payload.issues : []
+        const issues: IssueRecord[] = Array.isArray(payload?.issues) ? payload.issues.filter((issue: IssueRecord) => issue.status !== 'Duplicate') : []
         const topIssue = [...issues].sort((a, b) => (b.chaiHeat ?? 0) - (a.chaiHeat ?? 0))[0]
         setLocalHeat(topIssue ? topIssue.chaiHeat : 0)
       })

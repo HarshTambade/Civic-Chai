@@ -78,7 +78,9 @@ function validTwilioSignature(url: string, fields: URLSearchParams, signature: s
 function messageFor(session: VoiceSession) {
   const category = session.complaint_text?.startsWith('[KEYPAD:') ? session.complaint_text.split(':')[1]?.replace(']', '') : ''
   const issue = category ? CATEGORIES[category]?.title : analyzeComplaint(session.complaint_text ?? '', session.language).issue
-  return `${issue}. PIN ${session.pin}. ${session.locality}. Duration ${session.duration}. Evidence ${session.has_evidence ? 'available' : 'not available'}.`
+  // Read the transcript back so the caller can catch speech-recognition mistakes before filing.
+  const transcript = category || !session.complaint_text ? '' : ` You said: ${session.complaint_text.slice(0, 240)}.`
+  return `${issue}.${transcript} PIN ${session.pin}. ${session.locality}. Duration ${session.duration}. Evidence ${session.has_evidence ? 'available' : 'not available'}.`
 }
 
 export async function POST(request: Request) {
@@ -174,8 +176,13 @@ export async function POST(request: Request) {
   if (session.stage === 'review') {
     const confirmation = digit || (/^(yes|haan|हो|होय)$/i.test(spoken) ? '1' : '')
     if (confirmation === '2') {
+      // Callers who declined transcription correct the report with keypad categories, never speech.
+      if (!session.consented_at) {
+        await update({ complaint_text: '[KEYPAD:6]' }, 'category')
+        return twiml(gather('Select the correct category. Press 1 for road damage, 2 for streetlights, 3 for waste, 4 for water, 5 for drainage, or 6 for another civic issue.', 'dtmf', { digits: 1, language: sessionLanguage }))
+      }
       await update({ complaint_text: null }, 'problem')
-      return twiml(gather('Please say the corrected complaint now.', 'speech', { speech: true, language: sessionLanguage }))
+      return twiml(gather('Please say the corrected complaint now, or press 0 for keypad categories.', 'speech dtmf', { speech: true, language: sessionLanguage }))
     }
     if (confirmation !== '1') return twiml(gather(`Summary: ${messageFor(session)} Press 1 to confirm, or 2 to correct the description.`, 'dtmf', { digits: 1, language: sessionLanguage }))
 
