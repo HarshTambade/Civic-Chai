@@ -4,15 +4,55 @@ import { PwaRegister } from '@/components/pwa-register'
 import { AuthProvider } from '@/components/auth-provider'
 import { StreeChat } from '@/components/stree-chat'
 import { LanguageProvider } from '@/components/language-provider'
+import { SITE_URL } from '@/lib/seo'
 import 'leaflet/dist/leaflet.css'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'CivicChai — India mein har ek Charcha Chai Pe hoti hai',
+  metadataBase: SITE_URL,
+  title: {
+    default: 'CivicChai | Community civic issue reporting in India',
+    template: '%s | CivicChai',
+  },
   description:
-    'CivicChai turns everyday civic problems into community discussions. Report karo, charcha karo, vote karo — aur dekho tumhari awaaz kahan tak pahunchti hai.',
-  generator: 'v0.app',
+    'CivicChai helps communities report local civic issues, discuss neighborhood needs, and follow public progress in one place.',
+  applicationName: 'CivicChai',
+  keywords: [
+    'civic engagement',
+    'neighborhood issues',
+    'community action',
+    'municipal services',
+    'civic technology India',
+  ],
   manifest: '/manifest.webmanifest',
+  openGraph: {
+    type: 'website',
+    locale: 'en_IN',
+    siteName: 'CivicChai',
+    title: 'CivicChai | Community civic issue reporting in India',
+    description:
+      'Report local civic issues, discuss neighborhood needs, and follow public progress with your community.',
+    url: '/',
+    images: [{ url: '/opengraph-image.png', width: 1200, height: 630, alt: 'CivicChai community civic platform' }],
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title: 'CivicChai | Community civic issue reporting in India',
+    description:
+      'Report local civic issues, discuss neighborhood needs, and follow public progress with your community.',
+    images: ['/opengraph-image.png'],
+  },
+  robots: {
+    index: true,
+    follow: true,
+    googleBot: {
+      index: true,
+      follow: true,
+      'max-image-preview': 'large',
+      'max-snippet': -1,
+      'max-video-preview': -1,
+    },
+  },
   icons: {
     icon: [
       { url: '/icon.svg', type: 'image/svg+xml' },

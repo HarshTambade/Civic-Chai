@@ -411,6 +411,7 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `GROQ_MODEL` | Optional online AI classification | Defaults to `llama-3.3-70b-versatile`. |
 | `APP_BASE_URL` | Phone IVR callback | Public base URL used to construct the Twilio webhook callback. |
 | `NEXT_PUBLIC_APP_URL` | App/IVR base URL fallback | Defaults in the example to `http://localhost:3000`; use the public HTTPS origin for a deployed IVR. |
+| `NEXT_PUBLIC_SITE_URL` | Canonical, sitemap, and social metadata base URL | Set this to the deployed public HTTPS origin (for example, `https://civicchai.example`). Vercel's production URL and `NEXT_PUBLIC_APP_URL` are used as fallbacks. |
 | `NEXT_PUBLIC_MAP_TILE_URL` | Map tiles | Tile URL template; OpenStreetMap is shown in the example. |
 | `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
