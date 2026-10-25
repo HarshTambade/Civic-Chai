@@ -181,7 +181,7 @@ These distinctions matter when demonstrating the project or preparing a pilot:
 ### File and track an issue
 
 1. The citizen opens `/citizen` and chooses a locality or PIN.
-2. They open the composer and enter the issue description, locality, and required six-digit PIN.
+2. They open the composer. The first screen works like a ride-hailing pickup: it detects the device location, the citizen pans the map under a fixed pin, and the PIN code and locality fill in from OpenStreetMap. Both can be changed by hand (a typed PIN moves the map and suggests India Post localities). After confirming the location they describe the issue.
 3. The local classifier suggests a category, issue label, language, department, severity, and summary. The citizen can review the proposed information before submission.
 4. If online processing is enabled and the citizen opts in, the server may request a Groq classification. Otherwise the local rules result is used.
 5. The duplicate checker can suggest similar issues with the same PIN. The citizen can join/support a matching issue or identify a distinct issue; duplicate consolidation remains reviewable.

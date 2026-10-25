@@ -8,3 +8,4 @@ function MapLoading() {
 
 export const LocationPickerMap = dynamic(() => import('./leaflet-maps').then((module) => module.LocationPickerMap), { ssr: false, loading: MapLoading })
 export const CommunityMap = dynamic(() => import('./leaflet-maps').then((module) => module.CommunityMap), { ssr: false, loading: MapLoading })
+export const CenterPinMap = dynamic(() => import('./leaflet-maps').then((module) => module.CenterPinMap), { ssr: false, loading: MapLoading })

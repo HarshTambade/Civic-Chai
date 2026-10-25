@@ -88,6 +88,10 @@ function CommunityMapPanel({ pin }: { pin: string }) {
   const live = useLiveLocation()
   const pinCenter = usePincode(pin).info?.center
   const you: [number, number] | null = live.location ? [live.location.latitude, live.location.longitude] : null
+  const locate = live.locate
+
+  // Opening the map detects the citizen's location straight away.
+  useEffect(() => { void locate() }, [locate])
 
   useEffect(() => {
     let cancelled = false

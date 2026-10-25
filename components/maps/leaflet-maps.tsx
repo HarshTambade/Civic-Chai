@@ -21,9 +21,38 @@ const PIN_ICON = L.divIcon({
 function Recenter({ latitude, longitude, zoom }: { latitude: number; longitude: number; zoom?: number }) {
   const map = useMap()
   useEffect(() => {
+    const current = map.getCenter()
+    // Skip when the map is already here (e.g. the user just dragged it to this point).
+    if (Math.abs(current.lat - latitude) < 1e-6 && Math.abs(current.lng - longitude) < 1e-6 && (zoom == null || zoom === map.getZoom())) return
     map.setView([latitude, longitude], zoom ?? map.getZoom(), { animate: true })
   }, [latitude, longitude, zoom, map])
   return null
+}
+
+function DragWatcher({ onUserMove }: { onUserMove: (latitude: number, longitude: number) => void }) {
+  // Only user drags count; programmatic recentring (GPS, PIN search) must not trigger a lookup.
+  useMapEvents({ dragend: (event) => { const center = (event.target as L.Map).getCenter(); onUserMove(center.lat, center.lng) } })
+  return null
+}
+
+/**
+ * Ride-hailing style picker: the pin stays fixed in the middle and the citizen pans the
+ * map underneath it. `onUserMove` reports the new centre after each drag.
+ */
+export function CenterPinMap({ latitude, longitude, zoom, onUserMove, className }: { latitude: number; longitude: number; zoom: number; onUserMove: (latitude: number, longitude: number) => void; className?: string }) {
+  return (
+    <div className="relative">
+      <MapContainer center={[latitude, longitude]} zoom={zoom} zoomControl={false} className={className ?? 'h-72 w-full'}>
+        <TileLayer attribution={TILE_ATTRIBUTION} url={TILE_URL} />
+        <Recenter latitude={latitude} longitude={longitude} zoom={zoom} />
+        <DragWatcher onUserMove={onUserMove} />
+      </MapContainer>
+      <div aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 z-[500] -translate-x-1/2 -translate-y-full">
+        <svg viewBox="0 0 24 34" className="h-10 w-7 drop-shadow-md"><path d="M12 0C5.4 0 0 5.3 0 11.9 0 20.8 12 34 12 34s12-13.2 12-22.1C24 5.3 18.6 0 12 0Z" fill="#c2552d" /><circle cx="12" cy="12" r="4.6" fill="#fff" /></svg>
+      </div>
+      <span aria-hidden className="pointer-events-none absolute left-1/2 top-1/2 z-[499] h-1.5 w-3 -translate-x-1/2 rounded-full bg-black/30 blur-[1px]" />
+    </div>
+  )
 }
 
 function ClickToMove({ onMove }: { onMove: (latitude: number, longitude: number) => void }) {

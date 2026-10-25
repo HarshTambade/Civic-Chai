@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { CATEGORY_OPTIONS, analyzeComplaintRequest, categoryOption } from '@/lib/ai'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
@@ -12,8 +12,7 @@ import { useAuth } from '@/components/auth-provider'
 import { PwaInstallButton } from '@/components/pwa-install-button'
 import { useServiceArea } from './use-service-area'
 import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage } from './speech'
-import { locationAlreadyAllowed, reverseLookup, useLiveLocation, usePincode } from './use-location'
-import { LocationPickerMap } from '@/components/maps'
+import { LocationStep, type ReportLocation } from './location-step'
 import Link from 'next/link'
 import {
   X,
@@ -28,7 +27,7 @@ import {
   ArrowLeft,
 } from 'lucide-react'
 
-type Step = 'compose' | 'analyzing' | 'result' | 'duplicate' | 'done'
+type Step = 'location' | 'compose' | 'analyzing' | 'result' | 'duplicate' | 'done'
 type Analysis = Awaited<ReturnType<typeof analyzeComplaintRequest>>
 
 const LANGS = ['Auto Detect', 'English', 'हिन्दी', 'मराठी']
@@ -40,7 +39,7 @@ function isInstalledApp() {
 export function Composer({ onClose }: { onClose: () => void }) {
   const { user, isHydrated } = useAuth()
   const area = useServiceArea()
-  const [step, setStep] = useState<Step>('compose')
+  const [step, setStep] = useState<Step>('location')
   const [text, setText] = useState('')
   const [lang, setLang] = useState('Auto Detect')
   const [analysis, setAnalysis] = useState<Analysis | null>(null)
@@ -48,7 +47,6 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const [usedVoice, setUsedVoice] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [proofUrls, setProofUrls] = useState<string[]>([])
-  const [locationLabel, setLocationLabel] = useState('')
   const [pin, setPin] = useState('')
   const [locality, setLocality] = useState('')
   const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null)
@@ -64,9 +62,11 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const prefilled = useRef(false)
 
   const canFile = Boolean(user && (user.role === 'citizen' || canManageIssues(user.role)))
-  const live = useLiveLocation()
-  const isLocating = live.status === 'locating'
-  const pinLookup = usePincode(pin)
+  const updateLocation = useCallback((next: Partial<ReportLocation>) => {
+    if (next.pin !== undefined) setPin(next.pin)
+    if (next.locality !== undefined) setLocality(next.locality)
+    if (next.coordinates !== undefined) setCoordinates(next.coordinates)
+  }, [])
 
   // Saved area and consent choices are defaults; the citizen confirms them for each report.
   useEffect(() => {
@@ -76,8 +76,6 @@ export function Composer({ onClose }: { onClose: () => void }) {
     setLocality((current) => current || area.locality)
     setOnlineConsent(area.consent.online_ai)
     setOfflineStorageConsent(area.consent.offline_storage)
-    // Fetch live location straight away when the browser already allows it (no surprise prompt).
-    void locationAlreadyAllowed().then((allowed) => { if (allowed) void locateMe() })
   }, [area])
 
   useEffect(() => {
@@ -139,7 +137,8 @@ export function Composer({ onClose }: { onClose: () => void }) {
   async function analyze() {
     if (!text.trim()) return
     if (pin.length !== 6 || !locality.trim()) {
-      setSubmissionError('Confirm a six-digit PIN and locality before classification.')
+      setSubmissionError('Set the location (PIN and locality) before classification.')
+      setStep('location')
       return
     }
     setSubmissionError('')
@@ -204,34 +203,6 @@ export function Composer({ onClose }: { onClose: () => void }) {
       .finally(() => {
         if (event.target) event.target.value = ''
       })
-  }
-
-  function applyPlace(place: Awaited<ReturnType<typeof reverseLookup>>) {
-    if (!place) return
-    if (place.pin) setPin(place.pin)
-    if (place.locality) setLocality(place.locality)
-    setLocationLabel(place.pin || place.locality
-      ? `Detected ${[place.locality, place.city].filter(Boolean).join(', ')}${place.pin ? ` · PIN ${place.pin}` : ''}. Drag the pin or edit the fields if this is not right.`
-      : 'Location attached. Enter the PIN and locality; the address lookup did not find them.')
-  }
-
-  async function locateMe() {
-    const result = await live.locate()
-    if (!result) return
-    setCoordinates({ lat: result.latitude, lng: result.longitude })
-    if (result.place) applyPlace(result.place)
-    else setLocationLabel('Location attached. Enter the PIN and locality; the address lookup is unavailable.')
-  }
-
-  async function moveLocation(latitude: number, longitude: number) {
-    setCoordinates({ lat: latitude, lng: longitude })
-    applyPlace(await reverseLookup(latitude, longitude))
-  }
-
-  function removeLocation() {
-    setCoordinates(null)
-    setLocationLabel('')
-    live.clear()
   }
 
   function changeCategory(category: string) {
@@ -354,8 +325,16 @@ export function Composer({ onClose }: { onClose: () => void }) {
         <div className="p-5">
           {!isHydrated && <p role="status" className="text-sm text-charcoal/60">Loading…</p>}
           {gate}
+          {isHydrated && !gate && step === 'location' && (
+            <LocationStep value={{ pin, locality, coordinates }} onChange={updateLocation} onConfirm={() => { setSubmissionError(''); setStep('compose') }} />
+          )}
           {isHydrated && !gate && (step === 'compose' || step === 'analyzing') && (
             <div className="space-y-4">
+              <button type="button" onClick={() => setStep('location')} className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left">
+                <MapPin className="h-4 w-4 shrink-0 text-terracotta" />
+                <span className="min-w-0 flex-1"><span className="block truncate text-sm font-semibold text-charcoal">{locality || 'Location not set'}</span><span className="block text-[11px] text-charcoal/55">PIN {pin || '—'}{coordinates ? ' · exact spot marked' : ''}</span></span>
+                <span className="shrink-0 text-xs font-semibold text-chai underline">Change</span>
+              </button>
               {user && user.role !== 'citizen' && <p className="rounded-lg bg-gold/10 p-3 text-xs text-charcoal/70">You are filing as staff. The report is recorded as assisted filing on behalf of a citizen; confirm the citizen agreed to this.</p>}
               {distinctFromId && <p className="rounded-lg bg-leaf/10 p-3 text-xs text-charcoal/70">You marked the suggested issue as a different problem. This report will be filed separately and the decision recorded for reviewers.</p>}
               <button
@@ -389,29 +368,6 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   className="mt-1 w-full resize-none rounded-xl border border-border bg-card p-3 text-sm font-normal text-charcoal outline-none placeholder:text-charcoal/40 focus:border-terracotta focus:ring-2 focus:ring-terracotta/20"
                 />
               </label>
-
-              <div className="grid grid-cols-2 gap-2">
-                <label className="text-xs font-semibold text-charcoal/65">PIN code
-                  <input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="postal-code" maxLength={6} required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
-                </label>
-                <label className="text-xs font-semibold text-charcoal/65">Locality / ward
-                  <input value={locality} onChange={(event) => setLocality(event.target.value.slice(0, 120))} list="composer-localities" required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
-                  <datalist id="composer-localities">{pinLookup.info?.localities.map((name) => <option key={name} value={name} />)}</datalist>
-                </label>
-              </div>
-              {pin.length === 6 && <p className="-mt-2 text-[11px] text-charcoal/55" aria-live="polite">{pinLookup.loading ? 'Checking PIN…' : pinLookup.info ? pinLookup.info.valid ? `PIN ${pin}: ${[pinLookup.info.district, pinLookup.info.state].filter(Boolean).join(', ') || 'found'}${pinLookup.info.localities.length ? ` · ${pinLookup.info.localities.length} localities to choose from` : ''}` : `PIN ${pin} was not found. Check the number.` : ''}</p>}
-
-              <button type="button" onClick={() => void locateMe()} disabled={isLocating} className="flex w-full items-center justify-center gap-2 rounded-xl border border-chai/30 bg-chai/5 px-4 py-2.5 text-sm font-semibold text-chai disabled:opacity-60">
-                <MapPin className="h-4 w-4" />{isLocating ? 'Finding your location…' : coordinates ? 'Update to my current location' : 'Use my current location'}
-              </button>
-              {live.error && <p role="alert" className="-mt-2 text-xs text-heat">{live.error}</p>}
-              {coordinates && <div className="overflow-hidden rounded-xl border border-border">
-                <LocationPickerMap latitude={coordinates.lat} longitude={coordinates.lng} onMove={(latitude, longitude) => void moveLocation(latitude, longitude)} />
-                <div className="flex items-start justify-between gap-2 bg-card px-3 py-2 text-[11px] leading-relaxed text-charcoal/60">
-                  <span>{locationLabel || 'Drag the pin to the exact spot.'} Only authorized staff see the exact point; the public map shows about 1 km.</span>
-                  <button type="button" onClick={removeLocation} className="shrink-0 font-semibold text-terracotta underline">Remove</button>
-                </div>
-              </div>}
 
               <div className="flex flex-wrap gap-2" role="group" aria-label="Complaint language">
                 {LANGS.map((l) => (
@@ -517,7 +473,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   </>
                 )}
               </button>
-              {(!text.trim() || pin.length !== 6 || !locality.trim()) && <p className="text-center text-[11px] text-charcoal/50">Describe the problem and confirm a six-digit PIN and locality to continue.</p>}
+              {(!text.trim() || pin.length !== 6 || !locality.trim()) && <p className="text-center text-[11px] text-charcoal/50">{pin.length !== 6 || !locality.trim() ? 'Set the location first (tap the location above).' : 'Describe the problem to continue.'}</p>}
               <div className="flex items-center justify-center gap-3 text-center text-xs text-charcoal/50">
                 <span>Offline drafts stay on this device until connection returns.</span>
                 <PwaInstallButton className="inline-flex items-center gap-1 font-semibold text-chai" />
