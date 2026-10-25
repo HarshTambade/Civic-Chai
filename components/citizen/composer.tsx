@@ -57,7 +57,8 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const [submissionError, setSubmissionError] = useState('')
   const [submittedIssue, setSubmittedIssue] = useState<IssueRecord | null>(null)
   const [distinctFromId, setDistinctFromId] = useState('')
-  const [deployment, setDeployment] = useState({ intake: true, uploads: true })
+  // Unknown until /api/health answers, so the form never flashes before the intake check.
+  const [deployment, setDeployment] = useState<{ intake: boolean; uploads: boolean } | null>(null)
   const recognitionRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const prefilled = useRef(false)
@@ -82,8 +83,8 @@ export function Composer({ onClose }: { onClose: () => void }) {
   useEffect(() => {
     let cancelled = false
     fetch('/api/health', { cache: 'no-store' }).then((response) => response.json()).then((payload) => {
-      if (!cancelled) setDeployment({ intake: payload?.publicIntakeEnabled !== false, uploads: payload?.evidenceUploadsEnabled !== false })
-    }).catch(() => {})
+      if (!cancelled) setDeployment({ intake: payload?.publicIntakeEnabled !== false, uploads: payload?.evidenceUploadsEnabled === true })
+    }).catch(() => { if (!cancelled) setDeployment({ intake: true, uploads: false }) })
     return () => { cancelled = true }
   }, [])
 
@@ -298,10 +299,11 @@ export function Composer({ onClose }: { onClose: () => void }) {
     ? analysis.duplicateCandidates
     : analysis?.duplicateIssue ? [{ issue: { ...analysis.duplicateIssue, department: analysis.department }, similarity: analysis.duplicateIssue.similarity, band: analysis.duplicateIssue.band, signals: [] as string[] }] : []
 
-  const gate = !isHydrated ? null
+  const ready = isHydrated && deployment !== null
+  const gate = !ready ? null
     // Sign-in comes first so visitors always see how to get an account.
     : !user ? <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-center"><p className="font-display text-lg font-bold text-charcoal">Sign in to report an issue</p><p className="text-sm text-charcoal/65">An account lets you track the report, receive status updates and confirm when it is fixed. Your name is never shown publicly.</p><Link href="/login?next=/citizen?report=1" className="inline-flex w-full justify-center rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream">Sign in or create an account</Link><Link href="/voice-agent" className="block text-xs font-semibold text-chai underline">No smartphone app? Use the voice-assisted form</Link></div>
-      : !deployment.intake ? <p className="rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm leading-relaxed text-charcoal/75">Online issue intake is not enabled for this deployment yet. Please use your authority&apos;s official grievance or emergency channel.{isDemoModeEnabled() && <span className="mt-2 block text-xs text-charcoal/55">Testing note: an administrator enables filing by setting CIVICCHAI_PUBLIC_INTAKE_ENABLED=true in the deployment environment and redeploying.</span>}</p>
+      : !deployment!.intake ? <p className="rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm leading-relaxed text-charcoal/75">Online issue intake is not enabled for this deployment yet. Please use your authority&apos;s official grievance or emergency channel.{isDemoModeEnabled() && <span className="mt-2 block text-xs text-charcoal/55">Testing note: an administrator enables filing by setting CIVICCHAI_PUBLIC_INTAKE_ENABLED=true in the deployment environment and redeploying.</span>}</p>
         : !canFile ? <p className="rounded-2xl border border-border bg-card p-4 text-sm text-charcoal/70">This account role cannot file civic reports. Use a citizen account, or a department account for assisted filing.</p>
           : null
 
@@ -325,12 +327,12 @@ export function Composer({ onClose }: { onClose: () => void }) {
         </div>
 
         <div className="p-5">
-          {!isHydrated && <p role="status" className="text-sm text-charcoal/60">Loading…</p>}
+          {!ready && <p role="status" className="flex items-center gap-2 text-sm text-charcoal/60"><Loader2 className="h-4 w-4 animate-spin" />Loading…</p>}
           {gate}
-          {isHydrated && !gate && step === 'location' && (
+          {ready && !gate && step === 'location' && (
             <LocationStep value={{ pin, locality, coordinates }} onChange={updateLocation} onConfirm={() => { setSubmissionError(''); setStep('compose') }} />
           )}
-          {isHydrated && !gate && (step === 'compose' || step === 'analyzing') && (
+          {ready && !gate && (step === 'compose' || step === 'analyzing') && (
             <div className="space-y-4">
               <button type="button" onClick={() => setStep('location')} className="flex w-full items-center gap-3 rounded-xl border border-border bg-card px-3 py-2.5 text-left">
                 <MapPin className="h-4 w-4 shrink-0 text-terracotta" />
@@ -402,7 +404,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
 
               <div className="grid grid-cols-2 gap-2">
                 {[
-                  [Camera, deployment.uploads ? 'Add Proof' : 'Proof later', () => deployment.uploads ? fileInputRef.current?.click() : setSubmissionError('Photo and video uploads are not enabled for this deployment yet. Mention in your complaint that you have proof.'), false],
+                  [Camera, deployment?.uploads ? 'Add Proof' : 'Proof later', () => deployment?.uploads ? fileInputRef.current?.click() : setSubmissionError('Photo and video uploads are not enabled for this deployment yet. Mention in your complaint that you have proof.'), false],
                   [Phone, 'Voice form', () => { window.location.href = '/voice-agent' }, false],
                 ].map(([Icon, label, onClick, disabled], i) => {
                   const I = Icon as React.ElementType

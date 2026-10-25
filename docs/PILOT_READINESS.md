@@ -34,7 +34,7 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 
 Do not represent CivicChai as a statutory grievance, appeal or emergency channel unless the responsible authority has formally approved that use and its integrations. Provide the authority's existing emergency and grievance channels in the pilot notice.
 
-Production issue and phone intake stay disabled unless `CIVICCHAI_PUBLIC_INTAKE_ENABLED=true`. Evidence uploads stay disabled unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable them only after the approved file-scanning or handling workflow is operating.
+Issue and phone intake are on by default (sign-in required, rate limited); set `CIVICCHAI_PUBLIC_INTAKE_ENABLED=false` to pause them until the authority approves go-live. Evidence uploads stay disabled in production unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable them only after the approved file-scanning or handling workflow is operating.
 
 ## Pilot workflow decisions in this release
 

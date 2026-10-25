@@ -422,7 +422,7 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `PINCODE_API_URL` | Optional PIN validation | Post-office localities for a PIN. Defaults to `https://api.postalpincode.in`. |
 | `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
-| `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Production issue and phone intake | Set to `true` only after the authority and pilot owner approve the deployment and complete the readiness checklist. Production defaults to disabled. |
+| `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Pausing issue and phone intake | Intake (sign-in required, rate limited) is on by default. Set to `false` to pause filing, for example during maintenance or before the authority approves go-live. Accepts `true`/`false`, `1`/`0`, `yes`/`no`. |
 | `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED` | Production evidence uploads | Set to `true` only after an approved malware scanning or file-handling workflow is active. Production defaults to disabled. |
 | `NEXT_PUBLIC_CIVICCHAI_DEMO_MODE` | Testing with the seeded demo accounts | When `true`, `/login` lists the seeded `@civicchai.local` accounts as one-tap sign-ins and those demo staff accounts skip TOTP MFA. Real staff accounts still require MFA. Set to `false` before accepting real reports; local preview always behaves as demo mode. |
 | `ALLOW_DEMO_USER_SEED` | Exceptional production seeding only | Must be `1` to override the script's production guard. Avoid enabling in public environments. |
@@ -564,7 +564,7 @@ Before a live pilot, the responsible authority and deployment team should:
 
 The detailed coverage table and pilot boundaries are in this README and [Supabase setup](supabase/README.md).
 
-In production, issue and phone intake stay disabled unless `CIVICCHAI_PUBLIC_INTAKE_ENABLED=true`. Evidence uploads stay disabled unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable each only after its readiness requirements are met.
+Issue and phone intake are on by default and can be paused with `CIVICCHAI_PUBLIC_INTAKE_ENABLED=false`. Evidence uploads stay disabled in production unless `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED=true`; enable them only after an approved malware-scanning or file-handling workflow is operating.
 
 ## SOP coverage
 
