@@ -21,39 +21,38 @@ export function SiteNav() {
   const { language, setLanguage, t } = useLanguage()
   const { user, logout } = useAuth()
   const accountHref = user && user.role !== 'citizen' ? '/control-room' : '/citizen'
+  const accountLabel = user ? user.role === 'citizen' ? user.handle ?? 'My account' : 'Control Room' : ''
+  const label = (key: string) => key === 'authorityLogin' ? t.nav.authorityLogin
+    : key === 'localChai' ? t.nav.localChai
+      : key === 'howItWorks' ? t.nav.howItWorks
+        : key === 'chaiTapri' ? t.nav.chaiTapri
+          : t.nav.about
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-cream/85 backdrop-blur-md">
       <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-        <Link href="/" aria-label="CivicChai home">
+        <Link href="/" aria-label="CivicChai home" className="shrink-0">
           <Logo />
         </Link>
 
-        <div className="hidden items-center gap-7 md:flex">
+        {/* Full link row only where it fits on one line; smaller screens use the menu. */}
+        <div className="hidden min-w-0 items-center gap-5 xl:flex 2xl:gap-6">
           {LINKS.map((l) => (
             <Link
               key={l.labelKey}
               href={l.href}
-              className="text-sm font-medium text-charcoal/70 transition-colors hover:text-chai"
+              className="whitespace-nowrap text-sm font-medium text-charcoal/70 transition-colors hover:text-chai"
             >
-              {l.labelKey === 'authorityLogin'
-                ? t.nav.authorityLogin
-                : l.labelKey === 'localChai'
-                  ? t.nav.localChai
-                  : l.labelKey === 'howItWorks'
-                    ? t.nav.howItWorks
-                    : l.labelKey === 'chaiTapri'
-                      ? t.nav.chaiTapri
-                      : t.nav.about}
+              {label(l.labelKey)}
             </Link>
           ))}
         </div>
 
-        <div className="hidden items-center gap-2 md:flex">
+        <div className="ml-auto hidden shrink-0 items-center gap-2 lg:flex xl:ml-0">
           <select
             value={language}
             onChange={(event) => setLanguage(event.target.value as 'en' | 'hi' | 'mr')}
-            className="rounded-lg border border-border bg-background px-2 py-2 text-sm text-charcoal outline-none"
+            className="rounded-lg border border-border bg-background px-2 py-1.5 text-sm text-charcoal outline-none"
             aria-label="Select language"
           >
             {languageOptions.map((option) => (
@@ -63,28 +62,29 @@ export function SiteNav() {
             ))}
           </select>
           {user ? <>
-            <Link href={accountHref} className="max-w-36 truncate rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10" title={user.email}>
-              {user.role === 'citizen' ? user.handle ?? 'My account' : 'Control Room'}
+            <Link href={accountHref} title={accountLabel} aria-label={`Your account: ${accountLabel}`} className="flex items-center gap-2 rounded-full py-1 pl-1 pr-1 text-sm font-semibold text-chai transition-colors hover:bg-chai/10 2xl:pr-3">
+              <span aria-hidden className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-chai/15 text-xs font-bold">{accountLabel.slice(0, 2).toUpperCase()}</span>
+              <span className="hidden max-w-32 truncate 2xl:inline">{accountLabel}</span>
             </Link>
-            <button type="button" onClick={() => void logout()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-charcoal/65 transition-colors hover:bg-chai/10">
-              <LogOut className="h-4 w-4" />Sign out
+            <button type="button" onClick={() => void logout()} aria-label="Sign out" title="Sign out" className="inline-flex h-9 w-9 items-center justify-center rounded-lg text-charcoal/65 transition-colors hover:bg-chai/10">
+              <LogOut className="h-4 w-4" />
             </button>
           </> : <Link
             href="/login"
-            className="rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10"
+            className="whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10"
           >
             Sign in
           </Link>}
           <Link
             href="/citizen"
-            className="rounded-lg bg-chai px-4 py-2 text-sm font-semibold text-cream shadow-sm transition-colors hover:bg-chai/90"
+            className="whitespace-nowrap rounded-lg bg-chai px-4 py-2 text-sm font-semibold text-cream shadow-sm transition-colors hover:bg-chai/90"
           >
             {t.nav.startCharcha}
           </Link>
         </div>
 
         <button
-          className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-chai md:hidden"
+          className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-chai xl:hidden"
           onClick={() => setOpen((o) => !o)}
           aria-label={open ? 'Close menu' : 'Open menu'}
           aria-expanded={open}
@@ -94,7 +94,7 @@ export function SiteNav() {
       </nav>
 
       {open && (
-        <div className="border-t border-border bg-cream px-4 py-4 md:hidden">
+        <div className="border-t border-border bg-cream px-4 py-4 xl:hidden">
           <div className="flex flex-col gap-1">
             {LINKS.map((l) => (
               <Link
@@ -103,15 +103,7 @@ export function SiteNav() {
                 onClick={() => setOpen(false)}
                 className="rounded-lg px-3 py-2.5 text-sm font-medium text-charcoal/80 hover:bg-chai/10"
               >
-                {l.labelKey === 'authorityLogin'
-                  ? t.nav.authorityLogin
-                  : l.labelKey === 'localChai'
-                    ? t.nav.localChai
-                    : l.labelKey === 'howItWorks'
-                      ? t.nav.howItWorks
-                      : l.labelKey === 'chaiTapri'
-                        ? t.nav.chaiTapri
-                        : t.nav.about}
+                {label(l.labelKey)}
               </Link>
             ))}
             <div className="mt-2 rounded-lg border border-border bg-background px-3 py-2">
@@ -144,6 +136,7 @@ export function SiteNav() {
             </Link>}
             <Link
               href="/citizen"
+              onClick={() => setOpen(false)}
               className="mt-2 rounded-lg bg-chai px-4 py-2.5 text-center text-sm font-semibold text-cream"
             >
               {t.nav.startCharcha}
