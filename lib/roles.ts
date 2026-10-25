@@ -17,6 +17,8 @@ export type AppUser = {
   role: AppRole
   pin?: string
   department?: string
+  /** Public pseudonym; the real name is never shown to other users. */
+  handle?: string
   demo?: boolean
 }
 

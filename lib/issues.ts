@@ -3,6 +3,7 @@ import { calculateChaiHeat, calculatePriorityScore, calculateTrustScore } from '
 import { recordFallbackAudit } from '@/lib/audit'
 import { redactPublicText, safeComment } from '@/lib/privacy'
 import type { CreateIssueInput, IssueRecord, IssueStatus } from '@/lib/types'
+import { anonymousHandle } from '@/lib/anonymity'
 
 const ISSUE_FALLBACK_STORE_KEY = '__civicchai_issue_store__'
 const COMMENT_FALLBACK_STORE_KEY = '__civicchai_comment_store__'
@@ -100,6 +101,7 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
     slaDueAt: row.sla_due_at ?? row.slaDueAt,
     myRelationship: row.my_relationship ?? row.myRelationship,
     isDemo: Boolean(row.is_demo ?? row.isDemo),
+    isPublic: (row.is_public ?? row.isPublic) !== false,
     duplicateOf: row.duplicate_of ?? row.duplicateOf ?? undefined,
     duplicateDecision: row.duplicate_decision ?? row.duplicateDecision ?? undefined,
     hasEvidence: Boolean(row.has_evidence ?? row.evidence_urls?.length ?? row.image_url),
@@ -406,9 +408,9 @@ export async function setIssueFollow(id: string, userId: string | undefined, fol
   return issue
 }
 
-// Public discussion never shows account names; connected reads cannot see them either.
+// Public discussion shows only the author's anonymous handle, never an account name.
 export async function addIssueComment(id: string, body: string, authorId?: string, client = getSupabaseClient()) {
-  const displayName = 'Community member'
+  const displayName = authorId ? anonymousHandle(authorId) : 'Community member'
   const issue = await getIssueById(id, client)
   if (!issue) return null
   const text = safeComment(body.trim())
@@ -430,6 +432,9 @@ export async function getIssueComments(id: string, client = getSupabaseClient())
   const issue = await getIssueById(id, client)
   if (!issue) return []
   if (!client) return getFallbackCommentStore().filter((comment) => comment.issue_id === issue.id)
+  const withHandle = await client.from('issue_comments').select('id, issue_id, body, created_at, author_handle').eq('issue_id', issue.id).order('created_at', { ascending: false }).limit(100)
+  if (!withHandle.error) return (withHandle.data ?? []).map((row: any) => ({ ...row, display_name: row.author_handle ?? 'Community member' }))
+  // Databases without migration 006 have no handle column yet.
   const { data, error } = await client.from('issue_comments').select('id, issue_id, body, created_at').eq('issue_id', issue.id).order('created_at', { ascending: false }).limit(100)
   if (error) return []
   return (data ?? []).map((row: any) => ({ ...row, display_name: 'Community member' }))

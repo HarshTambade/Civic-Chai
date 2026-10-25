@@ -371,6 +371,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    - `supabase/migrations/003_pilot_hardening.sql`
    - `supabase/migrations/004_staff_mfa_rls.sql`
    - `supabase/migrations/005_pilot_workflow.sql`
+   - `supabase/migrations/006_anonymous_handles.sql`
 
    `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
 3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
@@ -417,6 +418,8 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `NEXT_PUBLIC_APP_URL` | App/IVR base URL fallback | Defaults in the example to `http://localhost:3000`; use the public HTTPS origin for a deployed IVR. |
 | `NEXT_PUBLIC_SITE_URL` | Canonical, sitemap, and social metadata base URL | Set this to the deployed public HTTPS origin (for example, `https://civicchai.example`). Vercel's production URL and `NEXT_PUBLIC_APP_URL` are used as fallbacks. |
 | `NEXT_PUBLIC_MAP_TILE_URL` | Map tiles | Tile URL template; OpenStreetMap is shown in the example. |
+| `NOMINATIM_URL` | Optional live-location lookup | Reverse geocoding (device location → PIN and locality) and PIN centring. Defaults to the public OpenStreetMap Nominatim service, which allows light use only; use your own instance for a busy pilot. |
+| `PINCODE_API_URL` | Optional PIN validation | Post-office localities for a PIN. Defaults to `https://api.postalpincode.in`. |
 | `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
 | `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Production issue and phone intake | Set to `true` only after the authority and pilot owner approve the deployment and complete the readiness checklist. Production defaults to disabled. |
@@ -502,6 +505,7 @@ An issue stores a public-facing document ID and description, original/normalized
 - `supabase/migrations/002_civicchai_platform.sql`: role/scope helpers, platform entities, RLS, storage, scoring and workflow functions.
 - `supabase/migrations/003_pilot_hardening.sql`: hardened server-side issue actions, role transition checks, geographic scope fields, and schema version marker.
 - `supabase/migrations/004_staff_mfa_rls.sql`: requires MFA for staff data access through both app routes and direct database API requests.
+- `supabase/migrations/006_anonymous_handles.sql`: gives every profile a stable anonymous public handle (for example `KadakKulhad-3F9A`), stamps comments with the author's handle, stops defaulting private names to the email prefix, and sets schema version 6.
 - `supabase/migrations/005_pilot_workflow.sql`: adds the `Municipal Operations` fallback department, accepts a public resolution note in place of a mandatory official URL, records `closed_at`, and sets schema version 5 (checked by `/api/health`).
 - `supabase/schema.sql`: consolidated fresh-project schema.
 - `supabase/seed.sql`: synthetic demo jurisdictions/issues only.
@@ -547,7 +551,7 @@ Rodgers-SIH/
 
 Before a live pilot, the responsible authority and deployment team should:
 
-1. Apply all five migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
+1. Apply all six migrations and confirm `/api/health` reports ready and `/api/system/health` reports a connected database.
 2. Use individual accounts with least-privilege role, department, and jurisdiction scopes. Change or remove shared demo credentials. Enroll staff in TOTP MFA.
 3. Populate and verify official jurisdiction, hub, department, officer/contact, legal-document, and optional service-target records from approved sources. Keep records unverified until reviewed.
 4. Approve privacy notices, consent language, data-retention/deletion rules, identity checks for data-rights requests, and the owners who fulfill those requests.

@@ -60,6 +60,7 @@ export interface IssueRecord {
   slaDueAt?: string
   myRelationship?: 'filed' | 'supported' | 'followed'
   isDemo?: boolean
+  isPublic?: boolean
   duplicateOf?: string
   duplicateDecision?: string
   hasEvidence?: boolean

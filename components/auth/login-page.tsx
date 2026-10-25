@@ -30,7 +30,6 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState('')
-  const [name, setName] = useState('')
   const [creatingAccount, setCreatingAccount] = useState(false)
   const [notice, setNotice] = useState('')
   const supabaseConfigured = hasSupabaseConfig()
@@ -58,7 +57,7 @@ export function LoginPage() {
     if (password.length < 8) { setError('Use a password with at least 8 characters.'); return }
     setIsLoading(true)
     try {
-      const account = await register({ email, password, name })
+      const account = await register({ email, password })
       if (!account) { setNotice('Check your email to confirm the account, then sign in.'); setCreatingAccount(false); return }
       router.replace(citizenReturnPath())
     } catch (reason) {
@@ -74,7 +73,7 @@ export function LoginPage() {
         <div className="w-full max-w-md rounded-2xl border border-sidebar-border bg-sidebar-accent p-6 text-center shadow-2xl sm:p-8">
           <div className="mb-5 flex justify-center"><Logo showWordmark={false} /></div>
           <h1 className="font-display text-2xl font-extrabold">You are signed in</h1>
-          <p className="mt-2 text-sm text-sidebar-foreground/65">{user.name} · {ROLE_LABELS[user.role]}</p>
+          <p className="mt-2 text-sm text-sidebar-foreground/65">{user.role === 'citizen' ? user.handle : user.name} · {ROLE_LABELS[user.role]}</p>
           <p className="text-xs text-sidebar-foreground/45">{user.email}</p>
           <button type="button" onClick={() => router.replace(destinationFor(user))} className="mt-6 flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-charcoal">
             {user.role === 'citizen' ? 'Open Citizen Portal' : 'Open Control Room'} <ArrowRight className="h-4 w-4" />
@@ -103,13 +102,12 @@ export function LoginPage() {
             <h1 className="font-display text-2xl font-extrabold">{creatingAccount ? 'Create a citizen account' : 'Sign in'}</h1>
             <p className="mt-2 text-sm leading-relaxed text-sidebar-foreground/60">
               {creatingAccount
-                ? 'New accounts are created as citizens. Administrative roles are provisioned by an authorized administrator.'
+                ? 'No real name needed. You get an anonymous public name (like KadakKulhad-3F9A); your email is never shown to other people.'
                 : supabaseConfigured
                   ? 'Citizens sign in with email and password. Staff accounts also confirm a code from an authenticator app.'
                   : localDemoEnabled ? 'Local preview mode is active. Choose a demo role to sign in on this device.' : 'Authentication is unavailable. The production Supabase configuration is missing.'}
             </p>
             <form onSubmit={submit} className="mt-5 space-y-3">
-              {creatingAccount && <><label className="block text-xs font-semibold text-sidebar-foreground/70" htmlFor="display-name">Name</label><input id="display-name" autoComplete="name" required maxLength={80} value={name} onChange={(event) => setName(event.target.value)} className={inputClass} /></>}
               <label className="block text-xs font-semibold text-sidebar-foreground/70" htmlFor="email">Email</label>
               <input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} />
               <label className="block pt-1 text-xs font-semibold text-sidebar-foreground/70" htmlFor="password">Password</label>

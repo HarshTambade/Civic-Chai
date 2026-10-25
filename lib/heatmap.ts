@@ -150,3 +150,34 @@ export function buildHeatmapData(issues: IssueRecord[]): HeatmapData {
     },
   }
 }
+
+export type PublicMapCell = {
+  latitude: number
+  longitude: number
+  issueCount: number
+  averageChaiHeat: number
+  issues: Array<{ id: string; documentId: string; title: string; category: string; status: string; chaiHeat: number }>
+}
+
+/**
+ * Community map data: issues grouped into ~1 km cells. Only the cell centre leaves the
+ * server, so a public viewer can see where problems cluster but not an exact address.
+ */
+export function buildPublicMapCells(issues: IssueRecord[]): PublicMapCell[] {
+  const cells = new Map<string, PublicMapCell & { heatTotal: number }>()
+  for (const issue of issues) {
+    const { latitude, longitude } = issue
+    if (typeof latitude !== 'number' || typeof longitude !== 'number' || !Number.isFinite(latitude) || !Number.isFinite(longitude)) continue
+    const [cellLat, cellLng, key] = geoCell(latitude, longitude)
+    const cell = cells.get(key) ?? { latitude: cellLat, longitude: cellLng, issueCount: 0, averageChaiHeat: 0, heatTotal: 0, issues: [] }
+    cell.issueCount += 1
+    cell.heatTotal += Math.max(0, Math.min(100, issue.chaiHeat ?? 0))
+    cell.issues.push({ id: issue.id, documentId: issue.documentId, title: issue.title, category: issue.category, status: issue.status, chaiHeat: issue.chaiHeat })
+    cells.set(key, cell)
+  }
+  return [...cells.values()].map(({ heatTotal, ...cell }) => ({
+    ...cell,
+    averageChaiHeat: average(heatTotal, cell.issueCount),
+    issues: cell.issues.sort((a, b) => b.chaiHeat - a.chaiHeat).slice(0, 5),
+  })).sort((a, b) => b.issueCount - a.issueCount)
+}

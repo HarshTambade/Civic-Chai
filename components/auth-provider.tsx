@@ -4,9 +4,10 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useState, t
 import type { SupabaseClient, User } from '@supabase/supabase-js'
 import { getSupabaseClient, isDemoModeEnabled, isLocalDemoModeEnabled } from '@/lib/supabase'
 import { DEMO_ACCOUNTS, isAppRole, isDemoAccountEmail, type AppUser } from '@/lib/roles'
+import { anonymousHandle } from '@/lib/anonymity'
 
 type Credentials = { email: string; password: string }
-type Registration = Credentials & { name: string }
+type Registration = Credentials
 type AuthContextType = {
   user: AppUser | null
   mfaVerified: boolean
@@ -27,7 +28,8 @@ function userFromProfile(authUser: User, profile?: Record<string, unknown> | nul
   return {
     id: authUser.id,
     email: authUser.email ?? '',
-    name: String(profile?.display_name ?? authUser.user_metadata?.display_name ?? authUser.email ?? 'CivicChai user'),
+    name: String(profile?.display_name ?? authUser.user_metadata?.display_name ?? anonymousHandle(authUser.id)),
+    handle: anonymousHandle(authUser.id),
     role,
     pin: typeof profile?.pin === 'string' ? profile.pin : undefined,
     department: typeof profile?.department === 'string' ? profile.department : undefined,
@@ -86,7 +88,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           const saved = localStorage.getItem(DEMO_SESSION_KEY)
           if (saved) {
             const parsed = JSON.parse(saved) as AppUser
-            if (isAppRole(parsed.role)) { setUser({ ...parsed, demo: true }); setMfaVerified(true) }
+            if (isAppRole(parsed.role)) { setUser({ ...parsed, handle: anonymousHandle(parsed.id), demo: true }); setMfaVerified(true) }
           }
         } catch {
           localStorage.removeItem(DEMO_SESSION_KEY)
@@ -128,19 +130,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!isLocalDemoModeEnabled()) throw new Error('Authentication is unavailable. Configure the production Supabase URL and publishable key.')
     const account = DEMO_ACCOUNTS.find((item) => item.email === normalizedEmail && item.password === password)
     if (!account) throw new Error('Invalid email or password')
-    const { password: _password, ...demoUser } = account
+    const { password: _password, ...demoProfile } = account
+    const demoUser: AppUser = { ...demoProfile, handle: anonymousHandle(account.id) }
     localStorage.setItem(DEMO_SESSION_KEY, JSON.stringify(demoUser))
     setUser(demoUser)
     setMfaVerified(true)
     return demoUser
   }, [supabase])
 
-  const register = useCallback(async ({ email, password, name }: Registration): Promise<AppUser | null> => {
+  const register = useCallback(async ({ email, password }: Registration): Promise<AppUser | null> => {
     if (!supabase) throw new Error('Connect Supabase to create a durable account. The local preview includes demo accounts for every role.')
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
-      options: { data: { display_name: name.trim().slice(0, 80), preferred_language: 'en' } },
+      // No real name is collected; the profile is identified publicly by its anonymous handle.
+      options: { data: { preferred_language: 'en' } },
     })
     if (error) {
       if (error.code === 'user_already_exists') throw new Error('An account with this email already exists. Sign in instead.')

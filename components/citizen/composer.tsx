@@ -12,6 +12,8 @@ import { useAuth } from '@/components/auth-provider'
 import { PwaInstallButton } from '@/components/pwa-install-button'
 import { useServiceArea } from './use-service-area'
 import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage } from './speech'
+import { locationAlreadyAllowed, reverseLookup, useLiveLocation, usePincode } from './use-location'
+import { LocationPickerMap } from '@/components/maps'
 import Link from 'next/link'
 import {
   X,
@@ -56,13 +58,15 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const [submissionError, setSubmissionError] = useState('')
   const [submittedIssue, setSubmittedIssue] = useState<IssueRecord | null>(null)
   const [distinctFromId, setDistinctFromId] = useState('')
-  const [isLocating, setIsLocating] = useState(false)
   const [deployment, setDeployment] = useState({ intake: true, uploads: true })
   const recognitionRef = useRef<any>(null)
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const prefilled = useRef(false)
 
   const canFile = Boolean(user && (user.role === 'citizen' || canManageIssues(user.role)))
+  const live = useLiveLocation()
+  const isLocating = live.status === 'locating'
+  const pinLookup = usePincode(pin)
 
   // Saved area and consent choices are defaults; the citizen confirms them for each report.
   useEffect(() => {
@@ -72,6 +76,8 @@ export function Composer({ onClose }: { onClose: () => void }) {
     setLocality((current) => current || area.locality)
     setOnlineConsent(area.consent.online_ai)
     setOfflineStorageConsent(area.consent.offline_storage)
+    // Fetch live location straight away when the browser already allows it (no surprise prompt).
+    void locationAlreadyAllowed().then((allowed) => { if (allowed) void locateMe() })
   }, [area])
 
   useEffect(() => {
@@ -200,27 +206,32 @@ export function Composer({ onClose }: { onClose: () => void }) {
       })
   }
 
-  function handleLocationCapture() {
-    if (!navigator.geolocation) {
-      setLocationLabel('Device location is not available in this browser.')
-      return
-    }
+  function applyPlace(place: Awaited<ReturnType<typeof reverseLookup>>) {
+    if (!place) return
+    if (place.pin) setPin(place.pin)
+    if (place.locality) setLocality(place.locality)
+    setLocationLabel(place.pin || place.locality
+      ? `Detected ${[place.locality, place.city].filter(Boolean).join(', ')}${place.pin ? ` · PIN ${place.pin}` : ''}. Drag the pin or edit the fields if this is not right.`
+      : 'Location attached. Enter the PIN and locality; the address lookup did not find them.')
+  }
 
-    setIsLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords
-        setLocationLabel(`Device location attached (${latitude.toFixed(4)}, ${longitude.toFixed(4)}). Only authorized staff see exact coordinates.`)
-        setCoordinates({ lat: latitude, lng: longitude })
-        setIsLocating(false)
-      },
-      () => {
-        setLocationLabel('Device location was not shared. The PIN and locality you entered will be used.')
-        setCoordinates(null)
-        setIsLocating(false)
-      },
-      { enableHighAccuracy: true, timeout: 10000, maximumAge: 60000 },
-    )
+  async function locateMe() {
+    const result = await live.locate()
+    if (!result) return
+    setCoordinates({ lat: result.latitude, lng: result.longitude })
+    if (result.place) applyPlace(result.place)
+    else setLocationLabel('Location attached. Enter the PIN and locality; the address lookup is unavailable.')
+  }
+
+  async function moveLocation(latitude: number, longitude: number) {
+    setCoordinates({ lat: latitude, lng: longitude })
+    applyPlace(await reverseLookup(latitude, longitude))
+  }
+
+  function removeLocation() {
+    setCoordinates(null)
+    setLocationLabel('')
+    live.clear()
   }
 
   function changeCategory(category: string) {
@@ -384,9 +395,23 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   <input value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} inputMode="numeric" autoComplete="postal-code" maxLength={6} required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
                 </label>
                 <label className="text-xs font-semibold text-charcoal/65">Locality / ward
-                  <input value={locality} onChange={(event) => setLocality(event.target.value.slice(0, 120))} required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
+                  <input value={locality} onChange={(event) => setLocality(event.target.value.slice(0, 120))} list="composer-localities" required className="mt-1 w-full rounded-lg border border-border bg-card px-3 py-2 text-sm text-charcoal outline-none focus:border-terracotta" />
+                  <datalist id="composer-localities">{pinLookup.info?.localities.map((name) => <option key={name} value={name} />)}</datalist>
                 </label>
               </div>
+              {pin.length === 6 && <p className="-mt-2 text-[11px] text-charcoal/55" aria-live="polite">{pinLookup.loading ? 'Checking PIN…' : pinLookup.info ? pinLookup.info.valid ? `PIN ${pin}: ${[pinLookup.info.district, pinLookup.info.state].filter(Boolean).join(', ') || 'found'}${pinLookup.info.localities.length ? ` · ${pinLookup.info.localities.length} localities to choose from` : ''}` : `PIN ${pin} was not found. Check the number.` : ''}</p>}
+
+              <button type="button" onClick={() => void locateMe()} disabled={isLocating} className="flex w-full items-center justify-center gap-2 rounded-xl border border-chai/30 bg-chai/5 px-4 py-2.5 text-sm font-semibold text-chai disabled:opacity-60">
+                <MapPin className="h-4 w-4" />{isLocating ? 'Finding your location…' : coordinates ? 'Update to my current location' : 'Use my current location'}
+              </button>
+              {live.error && <p role="alert" className="-mt-2 text-xs text-heat">{live.error}</p>}
+              {coordinates && <div className="overflow-hidden rounded-xl border border-border">
+                <LocationPickerMap latitude={coordinates.lat} longitude={coordinates.lng} onMove={(latitude, longitude) => void moveLocation(latitude, longitude)} />
+                <div className="flex items-start justify-between gap-2 bg-card px-3 py-2 text-[11px] leading-relaxed text-charcoal/60">
+                  <span>{locationLabel || 'Drag the pin to the exact spot.'} Only authorized staff see the exact point; the public map shows about 1 km.</span>
+                  <button type="button" onClick={removeLocation} className="shrink-0 font-semibold text-terracotta underline">Remove</button>
+                </div>
+              </div>}
 
               <div className="flex flex-wrap gap-2" role="group" aria-label="Complaint language">
                 {LANGS.map((l) => (
@@ -417,10 +442,9 @@ export function Composer({ onClose }: { onClose: () => void }) {
                 onChange={handleProofSelection}
               />
 
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 {[
                   [Camera, deployment.uploads ? 'Add Proof' : 'Proof later', () => deployment.uploads ? fileInputRef.current?.click() : setSubmissionError('Photo and video uploads are not enabled for this deployment yet. Mention in your complaint that you have proof.'), false],
-                  [MapPin, isLocating ? 'Locating…' : coordinates ? 'Location added' : 'Location', handleLocationCapture, isLocating],
                   [Phone, 'Voice form', () => { window.location.href = '/voice-agent' }, false],
                 ].map(([Icon, label, onClick, disabled], i) => {
                   const I = Icon as React.ElementType
@@ -439,7 +463,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
                 })}
               </div>
 
-              {(proofUrls.length > 0 || locationLabel) && (
+              {proofUrls.length > 0 && (
                 <div className="space-y-2 rounded-xl border border-dashed border-border bg-card p-3">
                   {proofUrls.length > 0 && (
                     <div className="flex gap-2 overflow-x-auto pb-1">
@@ -459,9 +483,6 @@ export function Composer({ onClose }: { onClose: () => void }) {
                         </span>
                       ))}
                     </div>
-                  )}
-                  {locationLabel && (
-                    <p className="text-xs text-charcoal/60">{locationLabel}</p>
                   )}
                 </div>
               )}

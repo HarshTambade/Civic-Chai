@@ -1,7 +1,8 @@
 import { getSupabaseClient, getSupabaseClientForToken, isDemoModeEnabled, isLocalDemoModeEnabled } from '@/lib/supabase'
 import { isAppRole, isDemoAccountEmail, requiresMfa, type AppRole } from '@/lib/roles'
+import { anonymousHandle } from '@/lib/anonymity'
 
-export type RequestActor = { id?: string; email?: string; name?: string; role?: AppRole; pin?: string; department?: string; demo?: boolean }
+export type RequestActor = { id?: string; email?: string; name?: string; handle?: string; role?: AppRole; pin?: string; department?: string; demo?: boolean }
 
 export async function getRequestContext(request: Request) {
   const authorization = request.headers.get('authorization')
@@ -26,6 +27,7 @@ export async function getRequestContext(request: Request) {
         id: data.user.id,
         email: data.user.email,
         name: profile?.display_name ?? data.user.email,
+        handle: anonymousHandle(data.user.id),
         role: mfaRequired ? undefined : validRole,
         pin: profile?.pin ?? undefined,
         department: profile?.department ?? undefined,
@@ -43,6 +45,7 @@ export async function getRequestContext(request: Request) {
       id: request.headers.get('x-civicchai-demo-id') ?? undefined,
       email: request.headers.get('x-civicchai-demo-email') ?? undefined,
       name: request.headers.get('x-civicchai-demo-name') ?? undefined,
+      handle: anonymousHandle(request.headers.get('x-civicchai-demo-id') ?? role),
       role,
       pin: request.headers.get('x-civicchai-demo-pin') ?? undefined,
       department: request.headers.get('x-civicchai-demo-department') ?? undefined,

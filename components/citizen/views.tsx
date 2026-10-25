@@ -15,6 +15,9 @@ import { CivicTimeline } from '@/components/brand/civic-timeline'
 import { StatusBadge, PriorityBadge } from '@/components/brand/badges'
 import { localProfileKey, notifyProfileUpdated, useServiceArea } from './use-service-area'
 import { hottestScore } from '@/lib/issue-helpers'
+import { useLiveLocation, usePincode } from './use-location'
+import { CommunityMap } from '@/components/maps'
+import type { PublicMapCell } from '@/lib/heatmap'
 import {
   MapPin,
   Bell,
@@ -32,6 +35,7 @@ export function LocalChaiView() {
   const { pin, locality, loaded } = useServiceArea()
   const [issues, setIssues] = useState<IssueRecord[]>([])
   const [loading, setLoading] = useState(true)
+  const [mode, setMode] = useState<'list' | 'map'>('list')
 
   useEffect(() => {
     if (!loaded) return
@@ -57,6 +61,11 @@ export function LocalChaiView() {
   return (
     <div className="space-y-6">
       {loaded && !pin && <p className="rounded-xl border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/70">{locality ? `Your saved locality is ${locality}. ` : ''}Add your six-digit PIN and locality in Profile to make this feed local.</p>}
+      <div className="inline-flex rounded-xl border border-border bg-card p-1" role="group" aria-label="Feed view">
+        {(['list', 'map'] as const).map((value) => <button key={value} type="button" onClick={() => setMode(value)} aria-pressed={mode === value} className={cn('rounded-lg px-4 py-1.5 text-sm font-semibold capitalize', mode === value ? 'bg-chai text-cream' : 'text-charcoal/60')}>{value}</button>)}
+      </div>
+      {mode === 'map' && <CommunityMapPanel pin={pin} />}
+      {mode === 'list' && <>
       {loading && <p role="status" className="rounded-xl border border-border bg-card p-5 text-sm text-charcoal/55">Loading local issues…</p>}
       {!loading && issues.length === 0 && <div className="rounded-2xl border border-dashed border-border bg-card p-6 text-center"><p className="font-display font-bold text-charcoal">No public issues {pin ? `for PIN ${pin}` : 'yet'}</p><p className="mt-1 text-sm text-charcoal/60">Use Report to pour the first Chai for a civic problem in your area.</p></div>}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
@@ -64,7 +73,48 @@ export function LocalChaiView() {
           <ChaiCard key={issue.id} issue={issue} />
         ))}
       </div>
+      </>}
     </div>
+  )
+}
+
+const INDIA_CENTER: [number, number] = [20.5937, 78.9629]
+
+/** Public map of reported issues around the citizen, generalized to ~1 km for privacy. */
+function CommunityMapPanel({ pin }: { pin: string }) {
+  const [cells, setCells] = useState<PublicMapCell[]>([])
+  const [totals, setTotals] = useState({ total: 0, mapped: 0 })
+  const [error, setError] = useState('')
+  const live = useLiveLocation()
+  const pinCenter = usePincode(pin).info?.center
+  const you: [number, number] | null = live.location ? [live.location.latitude, live.location.longitude] : null
+
+  useEffect(() => {
+    let cancelled = false
+    fetch('/api/public/map')
+      .then(async (response) => {
+        const payload = await response.json()
+        if (!response.ok) throw new Error(payload.error ?? 'The community map is unavailable.')
+        if (!cancelled) { setCells(payload.cells ?? []); setTotals({ total: payload.totalIssues ?? 0, mapped: payload.mappedIssues ?? 0 }) }
+      })
+      .catch((reason) => { if (!cancelled) setError(reason instanceof Error ? reason.message : 'The community map is unavailable.') })
+    return () => { cancelled = true }
+  }, [])
+
+  const center: [number, number] = you ?? (pinCenter ? [pinCenter.latitude, pinCenter.longitude] : cells[0] ? [cells[0].latitude, cells[0].longitude] : INDIA_CENTER)
+  const zoom = you ? 15 : pinCenter ? 13 : cells[0] ? 12 : 5
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border px-4 py-3">
+        <p className="text-sm text-charcoal/70">{totals.mapped} of {totals.total} public issues have a shared location</p>
+        <button type="button" onClick={() => void live.locate()} disabled={live.status === 'locating'} className="inline-flex items-center gap-1.5 rounded-lg bg-chai px-3 py-2 text-xs font-semibold text-cream disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{live.status === 'locating' ? 'Locating…' : 'Near me'}</button>
+      </div>
+      {(error || live.error) && <p role="alert" className="px-4 py-2 text-xs text-heat">{error || live.error}</p>}
+      {live.location?.place && <p className="px-4 pt-2 text-xs text-charcoal/60">You are near {[live.location.place.locality, live.location.place.city].filter(Boolean).join(', ')}{live.location.place.pin ? ` · PIN ${live.location.place.pin}` : ''}. Your location stays on this device.</p>}
+      <CommunityMap cells={cells} center={center} zoom={zoom} you={you} className="h-[420px] w-full" />
+      <p className="px-4 py-2 text-[11px] text-charcoal/50">Circles group reports within about 1 km; colour shows community heat. Tap a circle to open the reports. Map data © OpenStreetMap contributors.</p>
+    </section>
   )
 }
 
@@ -344,6 +394,7 @@ export function MyCharchaView() {
 export function ProfileView() {
   const { user, logout } = useAuth()
   const { language, setLanguage } = useLanguage()
+  const live = useLiveLocation()
   const [profile, setProfile] = useState({ display_name: user?.name ?? '', city: '', ward: '', locality: '', preferred_pin: '', notification_preferences: { in_app: true, email: false }, consent_preferences: { online_ai: false, device_location: false, offline_storage: false } })
   const [issues, setIssues] = useState<IssueRecord[]>([])
   const [requests, setRequests] = useState<Array<Record<string, string>>>([])
@@ -385,6 +436,16 @@ export function ProfileView() {
     { Icon: Shield, title: 'Privacy', text: 'Use separate per-report consent for cloud AI, location and offline drafts.' },
     { Icon: Accessibility, title: 'Accessibility', text: 'Keyboard, screen-reader and voice/keypad workflows are supported.' },
   ]
+
+  const profilePin = usePincode(profile.preferred_pin ?? '')
+
+  async function fillFromLocation() {
+    const result = await live.locate()
+    const place = result?.place
+    if (!place) return
+    setProfile((current) => ({ ...current, preferred_pin: place.pin || current.preferred_pin, locality: place.locality || current.locality, city: place.city || current.city }))
+    setNotice('Area filled from your current location. Review it, then save preferences.')
+  }
 
   async function saveProfile(event: React.FormEvent) {
     event.preventDefault(); setSaving(true); setNotice('')
@@ -431,12 +492,13 @@ export function ProfileView() {
     <div className="space-y-5">
       <div className="flex items-center gap-5 rounded-2xl border border-border bg-card p-6">
         <span className="flex h-16 w-16 items-center justify-center rounded-full bg-terracotta/15 font-display text-2xl font-extrabold text-terracotta">
-          {(profile.display_name || user?.name || 'C').split(/\s+/).map((part) => part[0]).slice(0, 2).join('').toUpperCase()}
+          {(user?.handle ?? 'Guest').slice(0, 2).toUpperCase()}
         </span>
         <div>
           <p className="font-display text-xl font-extrabold text-charcoal">
-            {profile.display_name || user?.name || 'Guest citizen'}
+            {user?.handle ?? 'Guest citizen'}
           </p>
+          {user && <p className="text-[11px] text-charcoal/50">Your anonymous public name. Your real name and email are never shown to others.</p>}
           <p className="mt-0.5 flex items-center gap-1.5 text-sm text-charcoal/60">
             <MapPin className="h-3.5 w-3.5" /> {[profile.locality, profile.ward, profile.city].filter(Boolean).join(' · ') || 'Set your locality to personalize your feed'}
           </p>
@@ -470,12 +532,13 @@ export function ProfileView() {
       <form onSubmit={saveProfile} className="space-y-5 rounded-2xl border border-border bg-card p-6">
         <div><h2 className="font-display text-lg font-bold">Profile & preferences</h2><p className="mt-1 text-xs text-charcoal/55">Your saved area helps prioritize nearby issues. PIN is confirmed for each report and is not inferred from your profile.</p></div>
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="text-xs font-semibold text-charcoal/65">Display name<input value={profile.display_name} onChange={(event) => setProfile({ ...profile, display_name: event.target.value })} maxLength={80} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
+          <div className="text-xs font-semibold text-charcoal/65">Public name<p className="mt-1 rounded-lg border border-dashed border-border bg-muted/50 px-3 py-2 font-mono text-sm font-normal text-charcoal">{user?.handle ?? 'Assigned when you sign in'}</p><span className="mt-1 block font-normal text-charcoal/45">Assigned automatically and shown on your comments.</span></div>
           <label className="text-xs font-semibold text-charcoal/65">Preferred language<select value={language} onChange={(event) => setLanguage(event.target.value as 'en' | 'hi' | 'mr')} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal"><option value="en">English</option><option value="hi">हिन्दी</option><option value="mr">मराठी</option></select></label>
           <label className="text-xs font-semibold text-charcoal/65">City<input value={profile.city} onChange={(event) => setProfile({ ...profile, city: event.target.value })} maxLength={120} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
           <label className="text-xs font-semibold text-charcoal/65">Ward<input value={profile.ward} onChange={(event) => setProfile({ ...profile, ward: event.target.value })} maxLength={100} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
           <label className="text-xs font-semibold text-charcoal/65">Preferred service-area PIN<input value={profile.preferred_pin} onChange={(event) => setProfile({ ...profile, preferred_pin: event.target.value.replace(/\D/g, '').slice(0, 6) })} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
-          <label className="text-xs font-semibold text-charcoal/65 sm:col-span-2">Locality<input value={profile.locality} onChange={(event) => setProfile({ ...profile, locality: event.target.value })} maxLength={120} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /></label>
+          <label className="text-xs font-semibold text-charcoal/65 sm:col-span-2">Locality<input value={profile.locality} onChange={(event) => setProfile({ ...profile, locality: event.target.value })} list="profile-localities" maxLength={120} className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal text-charcoal" /><datalist id="profile-localities">{profilePin.info?.localities.map((name) => <option key={name} value={name} />)}</datalist>{profilePin.info && <span className="mt-1 block font-normal text-charcoal/50">{profilePin.info.valid ? `PIN ${profile.preferred_pin}: ${[profilePin.info.district, profilePin.info.state].filter(Boolean).join(', ')}` : 'That PIN was not found.'}</span>}</label>
+          <div className="sm:col-span-2"><button type="button" onClick={() => void fillFromLocation()} disabled={live.status === 'locating'} className="inline-flex items-center gap-1.5 rounded-lg border border-chai/30 bg-chai/5 px-3 py-2 text-xs font-semibold text-chai disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{live.status === 'locating' ? 'Finding your location…' : 'Use my current location'}</button>{live.error && <p role="alert" className="mt-1 text-xs text-heat">{live.error}</p>}<p className="mt-1 text-[11px] font-normal text-charcoal/45">Your coordinates are used once to look up the PIN with OpenStreetMap and are not saved.</p></div>
         </div>
         <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Notifications</legend>{(['in_app', 'email'] as const).map((key) => <label key={key} className="flex items-center gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={key === 'in_app' ? profile.notification_preferences?.in_app !== false : Boolean(profile.notification_preferences?.[key])} onChange={(event) => setProfile({ ...profile, notification_preferences: { ...profile.notification_preferences, [key]: event.target.checked } })} />{key === 'in_app' ? 'In-app status updates' : 'Email status updates (when email delivery is configured)'}</label>)}</fieldset>
         <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Optional processing choices</legend>{([['online_ai', 'Allow optional cloud AI for complaint classification'], ['device_location', 'Allow device coordinates on a report when I explicitly attach them'], ['offline_storage', 'Allow pending report drafts to be stored on this device']] as const).map(([key, label]) => <label key={key} className="flex items-start gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={Boolean(profile.consent_preferences?.[key])} onChange={(event) => setProfile({ ...profile, consent_preferences: { ...profile.consent_preferences, [key]: event.target.checked } })} className="mt-1" />{label}</label>)}</fieldset>

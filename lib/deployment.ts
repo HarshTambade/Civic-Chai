@@ -1,5 +1,5 @@
-/** Migration level this release requires (see supabase/migrations/005_pilot_workflow.sql). */
-export const REQUIRED_SCHEMA_VERSION = 5
+/** Migration level this release requires (see supabase/migrations/006_anonymous_handles.sql). */
+export const REQUIRED_SCHEMA_VERSION = 6
 
 /** Public intake stays closed in production until the pilot owner enables it. */
 export function isPublicIntakeEnabled() {

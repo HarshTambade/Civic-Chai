@@ -9,9 +9,10 @@ import { submitIssuePayload } from '@/lib/client-api'
 import { useAuth } from '@/components/auth-provider'
 import { useServiceArea } from '@/components/citizen/use-service-area'
 import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage, type SpeechRecognitionLike } from '@/components/citizen/speech'
+import { useLiveLocation } from '@/components/citizen/use-location'
 import { saveOfflineDraft } from '@/lib/offline-queue'
 import type { IssueRecord } from '@/lib/types'
-import { Check, Delete, Mic, Phone, Square, Volume2 } from 'lucide-react'
+import { Check, Delete, MapPin, Mic, Phone, Square, Volume2 } from 'lucide-react'
 
 const KEYPAD = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '0']
 
@@ -34,6 +35,16 @@ export function VoiceAgent() {
   const [message, setMessage] = useState('')
   const [issue, setIssue] = useState<IssueRecord | null>(null)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const live = useLiveLocation()
+  const [coordinates, setCoordinates] = useState<{ latitude: number; longitude: number } | null>(null)
+
+  async function fillFromLocation() {
+    const result = await live.locate()
+    if (!result) return
+    setCoordinates({ latitude: result.latitude, longitude: result.longitude })
+    if (result.place?.pin) setPin(result.place.pin)
+    if (result.place?.locality) setLocality(result.place.locality)
+  }
 
   useEffect(() => {
     setSpeechSupported(Boolean(getSpeechRecognition()))
@@ -132,7 +143,9 @@ export function VoiceAgent() {
         language: analysis.language,
         ai_confidence: analysis.confidence,
         severity: analysis.severity,
-        consent: { browser_speech: voiceConsent, caller_confirmed: true, raw_audio_retained: false },
+        location_lat: coordinates?.latitude,
+        location_lng: coordinates?.longitude,
+        consent: { browser_speech: voiceConsent, caller_confirmed: true, raw_audio_retained: false, device_location: Boolean(coordinates) },
       }
       if (!navigator.onLine) {
         if (!area.consent.offline_storage) { setMessage('You are offline. Allow on-device draft storage in Profile, or reconnect to submit.'); return }
@@ -200,6 +213,8 @@ export function VoiceAgent() {
               </div>
             </div>
             <div className="space-y-3">
+              <button type="button" onClick={() => void fillFromLocation()} disabled={live.status === 'locating'} className="flex w-full items-center justify-center gap-2 rounded-xl border border-chai/30 bg-chai/5 px-3 py-2.5 text-sm font-semibold text-chai disabled:opacity-60"><MapPin className="h-4 w-4" />{live.status === 'locating' ? 'Finding your location…' : coordinates ? 'Location attached · update' : 'Use my current location'}</button>
+              {live.error && <p role="alert" className="text-xs text-heat">{live.error}</p>}
               <label className="block text-sm font-semibold">Locality / ward
                 <input value={locality} onChange={(event) => setLocality(event.target.value.slice(0, 120))} className="mt-1 w-full rounded-xl border border-border bg-background px-3 py-2.5 text-sm font-normal" />
               </label>

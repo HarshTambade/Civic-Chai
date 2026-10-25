@@ -21,7 +21,6 @@ export function SiteNav() {
   const { language, setLanguage, t } = useLanguage()
   const { user, logout } = useAuth()
   const accountHref = user && user.role !== 'citizen' ? '/control-room' : '/citizen'
-  const firstName = user?.name.split(/\s+/)[0] ?? ''
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-cream/85 backdrop-blur-md">
@@ -65,7 +64,7 @@ export function SiteNav() {
           </select>
           {user ? <>
             <Link href={accountHref} className="max-w-36 truncate rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10" title={user.email}>
-              {user.role === 'citizen' ? `Hi, ${firstName}` : 'Control Room'}
+              {user.role === 'citizen' ? user.handle ?? 'My account' : 'Control Room'}
             </Link>
             <button type="button" onClick={() => void logout()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-charcoal/65 transition-colors hover:bg-chai/10">
               <LogOut className="h-4 w-4" />Sign out
@@ -131,7 +130,7 @@ export function SiteNav() {
             </div>
             {user ? <>
               <Link href={accountHref} onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-semibold text-chai hover:bg-chai/10">
-                {user.role === 'citizen' ? `Signed in as ${user.name}` : 'Open Control Room'}
+                {user.role === 'citizen' ? `Signed in as ${user.handle ?? 'citizen'}` : 'Open Control Room'}
               </Link>
               <button type="button" onClick={() => { setOpen(false); void logout() }} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-charcoal/70 hover:bg-chai/10">
                 <LogOut className="h-4 w-4" />Sign out

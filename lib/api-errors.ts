@@ -1,7 +1,7 @@
 // Postgres / PostgREST codes that mean the database schema is behind this release.
 const SCHEMA_ERROR_CODES = new Set(['42703', '42P01', '42883', 'PGRST202', 'PGRST204', 'PGRST205'])
 
-export const MIGRATION_HELP = 'The CivicChai database is missing required migrations. An administrator must apply supabase/migrations/001 to 005 in order; /api/health shows the current state.'
+export const MIGRATION_HELP = 'The CivicChai database is missing required migrations. An administrator must apply supabase/migrations/001 to 006 in order; /api/health shows the current state.'
 
 export function isSchemaError(error: unknown) {
   const code = typeof error === 'object' && error && 'code' in error ? String((error as { code?: unknown }).code) : ''
