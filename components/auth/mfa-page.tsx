@@ -24,8 +24,9 @@ export function MfaPage() {
   useEffect(() => {
     if (!isHydrated) return
     if (!user) { router.replace('/login'); return }
-    if (user.role === 'citizen' || user.demo) { router.replace(user.role === 'citizen' ? '/citizen' : '/control-room'); return }
-    if (mfaVerified) { router.replace('/control-room'); return }
+    if (user.role === 'citizen') { router.replace('/citizen'); return }
+    // Local preview and demo-mode staff accounts are already verified by the auth provider.
+    if (user.demo || mfaVerified) { router.replace('/control-room'); return }
     if (!supabase) { setError('Staff MFA requires the connected Supabase Auth service.'); setLoading(false); return }
 
     const client = supabase

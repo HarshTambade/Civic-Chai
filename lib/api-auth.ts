@@ -1,5 +1,5 @@
-import { getSupabaseClient, getSupabaseClientForToken, isLocalDemoModeEnabled } from '@/lib/supabase'
-import { isAppRole, requiresMfa, type AppRole } from '@/lib/roles'
+import { getSupabaseClient, getSupabaseClientForToken, isDemoModeEnabled, isLocalDemoModeEnabled } from '@/lib/supabase'
+import { isAppRole, isDemoAccountEmail, requiresMfa, type AppRole } from '@/lib/roles'
 
 export type RequestActor = { id?: string; email?: string; name?: string; role?: AppRole; pin?: string; department?: string; demo?: boolean }
 
@@ -18,7 +18,9 @@ export async function getRequestContext(request: Request) {
     // Authorization comes from the protected profile row, never editable auth metadata.
     const role = profile?.role
     const validRole = isAppRole(role) ? role : undefined
-    const mfaRequired = Boolean(validRole && requiresMfa(validRole) && verifiedToken.data.claims.aal !== 'aal2')
+    // Seeded demo staff skip MFA only while demo mode is on; real staff accounts always need AAL2.
+    const demoExempt = isDemoModeEnabled() && isDemoAccountEmail(data.user.email)
+    const mfaRequired = Boolean(validRole && requiresMfa(validRole) && verifiedToken.data.claims.aal !== 'aal2' && !demoExempt)
     return {
       actor: {
         id: data.user.id,

@@ -24,6 +24,7 @@ import {
   HelpCircle,
   ChevronRight,
   Check,
+  LogOut,
 } from 'lucide-react'
 
 /* ---------------- Local Chai (Home feed) ---------------- */
@@ -341,7 +342,7 @@ export function MyCharchaView() {
 
 /* ---------------- Profile ---------------- */
 export function ProfileView() {
-  const { user } = useAuth()
+  const { user, logout } = useAuth()
   const { language, setLanguage } = useLanguage()
   const [profile, setProfile] = useState({ display_name: user?.name ?? '', city: '', ward: '', locality: '', preferred_pin: '', notification_preferences: { in_app: true, email: false }, consent_preferences: { online_ai: false, device_location: false, offline_storage: false } })
   const [issues, setIssues] = useState<IssueRecord[]>([])
@@ -440,6 +441,11 @@ export function ProfileView() {
             <MapPin className="h-3.5 w-3.5" /> {[profile.locality, profile.ward, profile.city].filter(Boolean).join(' · ') || 'Set your locality to personalize your feed'}
           </p>
           {user && <p className="mt-1 text-xs text-charcoal/45">{user.email} · {user.role.replaceAll('_', ' ')}</p>}
+        </div>
+        <div className="ml-auto shrink-0">
+          {user
+            ? <button type="button" onClick={() => void logout()} className="inline-flex items-center gap-1.5 rounded-lg border border-border px-3 py-2 text-xs font-semibold text-charcoal/70 hover:bg-muted"><LogOut className="h-3.5 w-3.5" />Sign out</button>
+            : <Link href="/login?next=/citizen" className="inline-flex rounded-lg bg-chai px-3 py-2 text-xs font-semibold text-cream">Sign in</Link>}
         </div>
       </div>
 

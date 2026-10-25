@@ -1,42 +1,44 @@
-import { createClient as createSupabaseClient } from '@supabase/supabase-js'
+import { createClient as createSupabaseClient, type SupabaseClient } from '@supabase/supabase-js'
 
-export function getSupabaseClient() {
+const BROWSER_CLIENT_KEY = '__civicchai_supabase_browser_client__'
+
+function publicSupabaseConfig() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_SUPABASE_URL
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
     ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
     ?? process.env.NEXT_SUPABASE_ANON_KEY
+  return url && anonKey ? { url, anonKey } : null
+}
 
-  if (!url || !anonKey) {
-    return null
+/**
+ * In the browser this always returns the same client. Several auth clients sharing one
+ * stored session race to refresh the token, and Supabase revokes a session whose refresh
+ * token is reused, which signs people out at random.
+ */
+export function getSupabaseClient(): SupabaseClient | null {
+  const config = publicSupabaseConfig()
+  if (!config) return null
+
+  if (typeof window === 'undefined') {
+    return createSupabaseClient(config.url, config.anonKey, { auth: { persistSession: false, autoRefreshToken: false } })
   }
 
-  return createSupabaseClient(url, anonKey, {
-    auth: {
-      persistSession: typeof window !== 'undefined',
-      autoRefreshToken: typeof window !== 'undefined',
-    },
-  })
+  const root = window as typeof window & { [BROWSER_CLIENT_KEY]?: SupabaseClient }
+  root[BROWSER_CLIENT_KEY] ??= createSupabaseClient(config.url, config.anonKey, { auth: { persistSession: true, autoRefreshToken: true } })
+  return root[BROWSER_CLIENT_KEY]
 }
 
 export function getSupabaseClientForToken(token: string) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_SUPABASE_URL
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-    ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-    ?? process.env.NEXT_SUPABASE_ANON_KEY
-  if (!url || !anonKey || !token) return null
-  return createSupabaseClient(url, anonKey, {
+  const config = publicSupabaseConfig()
+  if (!config || !token) return null
+  return createSupabaseClient(config.url, config.anonKey, {
     global: { headers: { Authorization: `Bearer ${token}` } },
     auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false },
   })
 }
 
 export function hasSupabaseConfig() {
-  return Boolean(
-    (process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.NEXT_SUPABASE_URL) &&
-    (process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY
-      ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
-      ?? process.env.NEXT_SUPABASE_ANON_KEY),
-  )
+  return Boolean(publicSupabaseConfig())
 }
 
 /** Browser-only role simulation is strictly a local preview feature. */
@@ -44,9 +46,13 @@ export function isLocalDemoModeEnabled() {
   return process.env.NODE_ENV !== 'production' && !hasSupabaseConfig()
 }
 
-/** Shared demo credentials are listed only in local preview or when a controlled demo deployment opts in. */
-export function areDemoAccountsListed() {
-  return isLocalDemoModeEnabled() || process.env.NEXT_PUBLIC_CIVICCHAI_SHOW_DEMO_ACCOUNTS === 'true'
+/**
+ * Demo mode is for testing with the seeded @civicchai.local accounts: it lists them on
+ * /login and lets those demo staff accounts skip authenticator setup. Real staff accounts
+ * always need MFA. Turn it off before a pilot accepts real reports.
+ */
+export function isDemoModeEnabled() {
+  return isLocalDemoModeEnabled() || process.env.NEXT_PUBLIC_CIVICCHAI_DEMO_MODE === 'true'
 }
 
 export function getSupabaseServiceClient() {
@@ -56,5 +62,3 @@ export function getSupabaseServiceClient() {
   if (!url || !serviceKey) return null
   return createSupabaseClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false, detectSessionInUrl: false } })
 }
-
-export const supabase = getSupabaseClient()

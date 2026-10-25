@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MIGRATION_HELP, isSchemaError, publicErrorMessage } from '@/lib/api-errors'
 import { createIssue, getIssues } from '@/lib/issues'
 import { getRequestContext } from '@/lib/api-auth'
 import { getSupabaseServiceClient, hasSupabaseConfig, isLocalDemoModeEnabled } from '@/lib/supabase'
@@ -8,6 +9,7 @@ import { CATEGORY_OPTIONS, categoryOption } from '@/lib/ai'
 import { toPublicIssue } from '@/lib/privacy'
 import { consumeRateLimit } from '@/lib/rate-limit'
 import { isPublicIntakeEnabled } from '@/lib/deployment'
+import type { IssueRecord } from '@/lib/types'
 
 export async function GET(request: Request) {
   if (process.env.NODE_ENV === 'production' && !hasSupabaseConfig()) return NextResponse.json({ error: 'Civic issue storage is not configured.' }, { status: 503 })
@@ -21,7 +23,12 @@ export async function GET(request: Request) {
   const privileged = canManageIssues(actor?.role ?? 'citizen')
   const service = privileged ? getSupabaseServiceClient() : null
   if (privileged && hasSupabaseConfig() && !service) return NextResponse.json({ error: 'Privileged issue reads require the server-only Supabase service key.' }, { status: 503 })
-  let issues = await getIssues(service ?? client, privileged)
+  let issues: IssueRecord[]
+  try {
+    issues = await getIssues(service ?? client, privileged)
+  } catch (error) {
+    return NextResponse.json({ error: publicErrorMessage(error, 'Unable to load issues.') }, { status: 503 })
+  }
   if (actor?.role === 'department_operator' || actor?.role === 'department_supervisor') {
     if (!actor.department || !actor.pin) issues = []
     else issues = issues.filter((issue) => issue.department === actor.department && issue.pin === actor.pin)
@@ -113,7 +120,6 @@ export async function POST(request: Request) {
 
     return NextResponse.json(issue, { status: 201 })
   } catch (error) {
-    const message = error instanceof Error ? error.message : 'Unable to create issue'
-    return NextResponse.json({ error: message }, { status: 400 })
+    return NextResponse.json({ error: publicErrorMessage(error, 'Unable to file this report right now. Please try again.') }, { status: isSchemaError(error) ? 503 : 400 })
   }
 }

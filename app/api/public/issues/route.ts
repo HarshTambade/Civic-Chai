@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MIGRATION_HELP, isSchemaError, publicErrorMessage } from '@/lib/api-errors'
 import { getIssues } from '@/lib/issues'
 import { toPublicIssue } from '@/lib/privacy'
 
@@ -13,7 +14,7 @@ export async function GET(request: Request) {
     return NextResponse.json({ issues: publicIssues }, {
       headers: { 'Cache-Control': 'public, max-age=0, must-revalidate' },
     })
-  } catch {
-    return NextResponse.json({ error: 'The public issue feed is unavailable until the Supabase schema is ready.' }, { status: 503 })
+  } catch (error) {
+    return NextResponse.json({ error: publicErrorMessage(error, 'The public issue feed is unavailable right now.') }, { status: 503 })
   }
 }

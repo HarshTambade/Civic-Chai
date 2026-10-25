@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MIGRATION_HELP, isSchemaError, publicErrorMessage } from '@/lib/api-errors'
 import { analyzeComplaintWithGroq } from '@/lib/ai'
 import { findDuplicateCandidates } from '@/lib/scoring'
 import { getIssues } from '@/lib/issues'
@@ -36,7 +37,6 @@ export async function POST(request: Request) {
       duplicateIssueId: strong?.issue.id,
     })
   } catch (error) {
-    console.error('AI analyze route error:', error)
-    return NextResponse.json({ error: 'Unable to analyze complaint.' }, { status: 500 })
+    return NextResponse.json({ error: publicErrorMessage(error, 'Unable to analyze complaint.') }, { status: 500 })
   }
 }

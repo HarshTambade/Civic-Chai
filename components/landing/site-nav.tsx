@@ -4,8 +4,9 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { Logo } from '@/components/brand/logo'
 import { useLanguage } from '@/components/language-provider'
+import { useAuth } from '@/components/auth-provider'
 import { languageOptions } from '@/lib/i18n'
-import { Menu, X } from 'lucide-react'
+import { LogOut, Menu, X } from 'lucide-react'
 
 const LINKS = [
   { labelKey: 'localChai', href: '/citizen' },
@@ -18,6 +19,9 @@ const LINKS = [
 export function SiteNav() {
   const [open, setOpen] = useState(false)
   const { language, setLanguage, t } = useLanguage()
+  const { user, logout } = useAuth()
+  const accountHref = user && user.role !== 'citizen' ? '/control-room' : '/citizen'
+  const firstName = user?.name.split(/\s+/)[0] ?? ''
 
   return (
     <header className="sticky top-0 z-50 border-b border-border/70 bg-cream/85 backdrop-blur-md">
@@ -59,12 +63,19 @@ export function SiteNav() {
               </option>
             ))}
           </select>
-          <Link
+          {user ? <>
+            <Link href={accountHref} className="max-w-36 truncate rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10" title={user.email}>
+              {user.role === 'citizen' ? `Hi, ${firstName}` : 'Control Room'}
+            </Link>
+            <button type="button" onClick={() => void logout()} className="inline-flex items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-semibold text-charcoal/65 transition-colors hover:bg-chai/10">
+              <LogOut className="h-4 w-4" />Sign out
+            </button>
+          </> : <Link
             href="/login"
             className="rounded-lg px-3 py-2 text-sm font-semibold text-chai transition-colors hover:bg-chai/10"
           >
             Sign in
-          </Link>
+          </Link>}
           <Link
             href="/citizen"
             className="rounded-lg bg-chai px-4 py-2 text-sm font-semibold text-cream shadow-sm transition-colors hover:bg-chai/90"
@@ -118,13 +129,20 @@ export function SiteNav() {
                 ))}
               </select>
             </div>
-            <Link
+            {user ? <>
+              <Link href={accountHref} onClick={() => setOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-semibold text-chai hover:bg-chai/10">
+                {user.role === 'citizen' ? `Signed in as ${user.name}` : 'Open Control Room'}
+              </Link>
+              <button type="button" onClick={() => { setOpen(false); void logout() }} className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-left text-sm font-semibold text-charcoal/70 hover:bg-chai/10">
+                <LogOut className="h-4 w-4" />Sign out
+              </button>
+            </> : <Link
               href="/login"
               onClick={() => setOpen(false)}
               className="rounded-lg px-3 py-2.5 text-sm font-semibold text-chai hover:bg-chai/10"
             >
               Sign in
-            </Link>
+            </Link>}
             <Link
               href="/citizen"
               className="mt-2 rounded-lg bg-chai px-4 py-2.5 text-center text-sm font-semibold text-cream"

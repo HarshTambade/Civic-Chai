@@ -11,6 +11,7 @@ import { canManageIssues } from '@/lib/roles'
 import { useAuth } from '@/components/auth-provider'
 import { PwaInstallButton } from '@/components/pwa-install-button'
 import { useServiceArea } from './use-service-area'
+import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage } from './speech'
 import Link from 'next/link'
 import {
   X,
@@ -28,30 +29,7 @@ import {
 type Step = 'compose' | 'analyzing' | 'result' | 'duplicate' | 'done'
 type Analysis = Awaited<ReturnType<typeof analyzeComplaintRequest>>
 
-type SpeechRecognitionCtor = new () => {
-  lang: string
-  interimResults: boolean
-  continuous: boolean
-  start: () => void
-  stop: () => void
-  onresult: ((event: any) => void) | null
-  onend: (() => void) | null
-  onerror: ((event: any) => void) | null
-  onstart: (() => void) | null
-}
-
 const LANGS = ['Auto Detect', 'English', 'हिन्दी', 'मराठी']
-
-function getSpeechRecognition(): SpeechRecognitionCtor | null {
-  if (typeof window === 'undefined') return null
-
-  const browserWindow = window as Window & {
-    SpeechRecognition?: SpeechRecognitionCtor
-    webkitSpeechRecognition?: SpeechRecognitionCtor
-  }
-
-  return browserWindow.SpeechRecognition ?? browserWindow.webkitSpeechRecognition ?? null
-}
 
 function isInstalledApp() {
   return typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches
@@ -109,7 +87,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
     if (!SpeechRecognition) return
 
     const recognition = new SpeechRecognition()
-    recognition.lang = lang === 'Auto Detect' ? 'en-IN' : lang === 'हिन्दी' ? 'hi-IN' : lang === 'मराठी' ? 'mr-IN' : 'en-IN'
+    recognition.lang = speechLanguage(lang)
     recognition.interimResults = true
     recognition.continuous = false
 
@@ -134,9 +112,10 @@ export function Composer({ onClose }: { onClose: () => void }) {
     }
 
     recognition.onend = () => setIsListening(false)
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       setIsListening(false)
-      setSubmissionError('Voice input stopped. Check microphone permission, or type your complaint.')
+      const text = speechErrorMessage(event.error)
+      if (text) setSubmissionError(text)
     }
     recognition.onstart = () => setIsListening(true)
 
@@ -167,7 +146,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
   function toggleVoice() {
     const SpeechRecognition = getSpeechRecognition()
     if (!SpeechRecognition || !recognitionRef.current) {
-      setSubmissionError('Voice input is not supported in this browser. Please type your complaint, or use the CivicChai voice line.')
+      setSubmissionError(SPEECH_UNSUPPORTED_MESSAGE)
       return
     }
 
@@ -183,6 +162,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
       setIsListening(true)
     } catch {
       setIsListening(false)
+      setSubmissionError('Voice input could not start. Wait a moment and tap record again.')
     }
   }
 

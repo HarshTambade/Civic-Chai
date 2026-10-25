@@ -1,8 +1,9 @@
 'use client'
 
-import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
-import { getSupabaseClient, isLocalDemoModeEnabled } from '@/lib/supabase'
-import { DEMO_ACCOUNTS, isAppRole, type AppRole, type AppUser } from '@/lib/roles'
+import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
+import type { SupabaseClient, User } from '@supabase/supabase-js'
+import { getSupabaseClient, isDemoModeEnabled, isLocalDemoModeEnabled } from '@/lib/supabase'
+import { DEMO_ACCOUNTS, isAppRole, isDemoAccountEmail, type AppUser } from '@/lib/roles'
 
 type Credentials = { email: string; password: string }
 type Registration = Credentials & { name: string }
@@ -20,10 +21,7 @@ type AuthContextType = {
 const DEMO_SESSION_KEY = 'civicchai_demo_session'
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
-function userFromProfile(
-  authUser: { id: string; email?: string; user_metadata?: Record<string, unknown> },
-  profile?: Record<string, unknown> | null,
-): AppUser | null {
+function userFromProfile(authUser: User, profile?: Record<string, unknown> | null): AppUser | null {
   const role = profile?.role
   if (!isAppRole(role)) return null
   return {
@@ -34,6 +32,17 @@ function userFromProfile(
     pin: typeof profile?.pin === 'string' ? profile.pin : undefined,
     department: typeof profile?.department === 'string' ? profile.department : undefined,
   }
+}
+
+/** Reads the protected profile role and whether this session may open staff tools. */
+async function resolveUser(supabase: SupabaseClient, authUser: User, accessToken?: string) {
+  const { data: profile, error } = await supabase.from('profiles').select('role, display_name, pin, department').eq('id', authUser.id).maybeSingle()
+  const user = userFromProfile(authUser, profile)
+  if (!user) return { user: null, mfaVerified: false, profileError: error }
+  // Citizens never need MFA; seeded demo staff skip it only while demo mode is on.
+  if (user.role === 'citizen' || (isDemoModeEnabled() && isDemoAccountEmail(user.email))) return { user, mfaVerified: true, profileError: null }
+  const { data: assurance } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(accessToken)
+  return { user, mfaVerified: assurance?.currentLevel === 'aal2', profileError: null }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -48,36 +57,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     async function loadSession() {
       if (supabase) {
-        const { data } = await supabase.auth.getSession()
-        const session = data.session
-        if (session) {
-          const { data: profile } = await supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle()
-          const nextUser = userFromProfile(session.user, profile)
-          const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
-            ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
-            : { data: { currentLevel: 'aal2' as const } }
-          if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
+        try {
+          const { data } = await supabase.auth.getSession()
+          if (data.session) {
+            const resolved = await resolveUser(supabase, data.session.user, data.session.access_token)
+            if (mounted) { setUser(resolved.user); setMfaVerified(resolved.mfaVerified) }
+          }
+        } catch {
+          // An expired or revoked stored session leaves the visitor signed out.
         }
-        const { data: authState } = supabase.auth.onAuthStateChange((_event, session) => {
-          if (!mounted || !session) {
-            if (mounted) { setUser(null); setMfaVerified(false) }
+        const { data: authState } = supabase.auth.onAuthStateChange((event, session) => {
+          if (!mounted || event === 'INITIAL_SESSION') return
+          if (!session) {
+            setUser(null)
+            setMfaVerified(false)
             return
           }
           // Supabase holds an auth lock during this callback; defer further client calls so they cannot deadlock it.
           setTimeout(() => {
-            void supabase.from('profiles').select('role, display_name, pin, department').eq('id', session.user.id).maybeSingle().then(async ({ data: profile }) => {
-              const nextUser = userFromProfile(session.user, profile)
-              const { data: assurance } = nextUser?.role && nextUser.role !== 'citizen'
-                ? await supabase.auth.mfa.getAuthenticatorAssuranceLevel(session.access_token)
-                : { data: { currentLevel: 'aal2' as const } }
-              if (mounted) { setUser(nextUser); setMfaVerified(assurance?.currentLevel === 'aal2') }
-            })
+            void resolveUser(supabase, session.user, session.access_token).then((resolved) => {
+              if (mounted) { setUser(resolved.user); setMfaVerified(resolved.mfaVerified) }
+            }).catch(() => {})
           }, 0)
         })
         authSubscription = authState.subscription
       } else if (isLocalDemoModeEnabled()) {
         try {
-        const saved = localStorage.getItem(DEMO_SESSION_KEY)
+          const saved = localStorage.getItem(DEMO_SESSION_KEY)
           if (saved) {
             const parsed = JSON.parse(saved) as AppUser
             if (isAppRole(parsed.role)) { setUser({ ...parsed, demo: true }); setMfaVerified(true) }
@@ -93,37 +99,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; authSubscription?.unsubscribe() }
   }, [supabase])
 
-  const login = async ({ email, password }: Credentials): Promise<AppUser> => {
+  const login = useCallback(async ({ email, password }: Credentials): Promise<AppUser> => {
     const normalizedEmail = email.trim().toLowerCase()
     if (supabase) {
       const { data, error } = await supabase.auth.signInWithPassword({ email: normalizedEmail, password })
       if (error) {
         const invalidCredentials = error.code === 'invalid_credentials' ||
           (error.status === 400 && /invalid (login )?credentials/i.test(error.message))
-        if (invalidCredentials && DEMO_ACCOUNTS.some((account) => account.email === normalizedEmail)) {
+        if (invalidCredentials && isDemoAccountEmail(normalizedEmail)) {
           throw new Error('These demo credentials were rejected by the connected Supabase project. Run pnpm run seed:demo-users with this project’s server credentials, then try again.')
         }
         if (invalidCredentials) throw new Error('Invalid email or password.')
+        if (error.code === 'email_not_confirmed') throw new Error('Confirm your email address using the link we sent, then sign in.')
         throw new Error(error.message || 'Unable to reach Supabase Auth.')
       }
-      if (!data.user) throw new Error('Supabase Auth did not return a user for this sign-in.')
-      const { data: profile, error: profileError } = await supabase
-        .from('profiles')
-        .select('role, display_name, pin, department')
-        .eq('id', data.user.id)
-        .single()
-      const nextUser = userFromProfile(data.user, profile)
-      if (profileError || !nextUser) {
+      if (!data.user || !data.session) throw new Error('Supabase Auth did not return a session for this sign-in.')
+      const resolved = await resolveUser(supabase, data.user, data.session.access_token)
+      if (!resolved.user) {
         await supabase.auth.signOut()
-        if (profileError) throw new Error('Supabase accepted the sign-in, but CivicChai could not read this account’s role profile. Check the database migrations and profile access policies.')
-        throw new Error('Supabase accepted the sign-in, but this account has no valid CivicChai role. Rerun the demo-user seed for demo accounts.')
+        if (resolved.profileError) throw new Error('Supabase accepted the sign-in, but CivicChai could not read this account’s role profile. Check the database migrations and profile access policies.')
+        throw new Error('Supabase accepted the sign-in, but this account has no CivicChai profile yet. Try again in a moment, or rerun the demo-user seed for demo accounts.')
       }
-      const { data: assurance } = nextUser.role === 'citizen'
-        ? { data: { currentLevel: 'aal2' as const } }
-        : await supabase.auth.mfa.getAuthenticatorAssuranceLevel(data.session?.access_token)
-      setUser(nextUser)
-      setMfaVerified(assurance?.currentLevel === 'aal2')
-      return nextUser
+      setUser(resolved.user)
+      setMfaVerified(resolved.mfaVerified)
+      return resolved.user
     }
 
     if (!isLocalDemoModeEnabled()) throw new Error('Authentication is unavailable. Configure the production Supabase URL and publishable key.')
@@ -134,44 +133,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(demoUser)
     setMfaVerified(true)
     return demoUser
-  }
+  }, [supabase])
 
-  const register = async ({ email, password, name }: Registration): Promise<AppUser | null> => {
+  const register = useCallback(async ({ email, password, name }: Registration): Promise<AppUser | null> => {
     if (!supabase) throw new Error('Connect Supabase to create a durable account. The local preview includes demo accounts for every role.')
     const { data, error } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
       password,
       options: { data: { display_name: name.trim().slice(0, 80), preferred_language: 'en' } },
     })
-    if (error) throw new Error(error.message)
-    if (!data.session || !data.user) return null
-    const { data: profile, error: profileError } = await supabase.from('profiles').select('role, display_name, pin, department').eq('id', data.user.id).maybeSingle()
-    const nextUser = userFromProfile(data.user, profile)
-    if (profileError || !nextUser || nextUser.role !== 'citizen') {
-      await supabase.auth.signOut()
-      throw new Error('The account was created but its citizen profile is not ready yet. Check your email or sign in again shortly.')
+    if (error) {
+      if (error.code === 'user_already_exists') throw new Error('An account with this email already exists. Sign in instead.')
+      if (error.code === 'weak_password') throw new Error('Choose a stronger password (at least 8 characters, mixing letters and numbers).')
+      throw new Error(error.message)
     }
-    setUser(nextUser)
+    if (!data.session || !data.user) return null
+    const resolved = await resolveUser(supabase, data.user, data.session.access_token)
+    if (!resolved.user || resolved.user.role !== 'citizen') {
+      await supabase.auth.signOut()
+      throw new Error('The account was created but its citizen profile is not ready yet. Sign in again in a moment.')
+    }
+    setUser(resolved.user)
     setMfaVerified(true)
-    return nextUser
-  }
+    return resolved.user
+  }, [supabase])
 
-  const logout = async () => {
-    if (supabase) await supabase.auth.signOut()
+  const logout = useCallback(async () => {
+    if (supabase) await supabase.auth.signOut().catch(() => {})
     localStorage.removeItem(DEMO_SESSION_KEY)
     setUser(null)
     setMfaVerified(false)
-  }
+  }, [supabase])
 
-  const refreshMfa = async () => {
+  const refreshMfa = useCallback(async () => {
     if (!supabase) return isLocalDemoModeEnabled()
     const { data: sessionData } = await supabase.auth.getSession()
     if (!sessionData.session) { setMfaVerified(false); return false }
-    const { data: assurance, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel(sessionData.session.access_token)
-    const verified = !error && assurance?.currentLevel === 'aal2'
-    setMfaVerified(verified)
-    return verified
-  }
+    const resolved = await resolveUser(supabase, sessionData.session.user, sessionData.session.access_token)
+    setMfaVerified(resolved.mfaVerified)
+    return resolved.mfaVerified
+  }, [supabase])
 
   const value = useMemo<AuthContextType>(() => ({
     user,
@@ -182,7 +183,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     login,
     register,
     logout,
-  }), [user, mfaVerified, isHydrated])
+  }), [user, mfaVerified, isHydrated, refreshMfa, login, register, logout])
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>
 }

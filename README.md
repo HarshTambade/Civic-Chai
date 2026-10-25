@@ -382,7 +382,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    ```
 
    The script requires `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`. It is disabled in production unless `ALLOW_DEMO_USER_SEED=1` is explicitly set. Never enable this for a public deployment.
-6. Start the app. Staff demo accounts must enroll in TOTP MFA on their first connected-mode sign-in.
+6. Start the app. With `NEXT_PUBLIC_CIVICCHAI_DEMO_MODE=true` the demo accounts appear on `/login` and demo staff skip MFA for testing. Without it, staff demo accounts enroll in TOTP MFA on first sign-in. Rerunning the seed script resets demo passwords and removes any authenticator enrolled on a demo account.
 7. Before accepting real submissions, populate and verify the authority registry and complete the pilot and production checklist in this README.
 
 ### Demo identities
@@ -421,7 +421,7 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
 | `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Production issue and phone intake | Set to `true` only after the authority and pilot owner approve the deployment and complete the readiness checklist. Production defaults to disabled. |
 | `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED` | Production evidence uploads | Set to `true` only after an approved malware scanning or file-handling workflow is active. Production defaults to disabled. |
-| `NEXT_PUBLIC_CIVICCHAI_SHOW_DEMO_ACCOUNTS` | Controlled connected demos only | When `true`, `/login` lists the shared demo accounts. Leave unset or `false` for a pilot; local preview always lists them. |
+| `NEXT_PUBLIC_CIVICCHAI_DEMO_MODE` | Testing with the seeded demo accounts | When `true`, `/login` lists the seeded `@civicchai.local` accounts as one-tap sign-ins and those demo staff accounts skip TOTP MFA. Real staff accounts still require MFA. Set to `false` before accepting real reports; local preview always behaves as demo mode. |
 | `ALLOW_DEMO_USER_SEED` | Exceptional production seeding only | Must be `1` to override the script's production guard. Avoid enabling in public environments. |
 
 Do not commit `.env.local`, service-role keys, provider tokens, or real citizen data.

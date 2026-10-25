@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { MIGRATION_HELP, isSchemaError, publicErrorMessage } from '@/lib/api-errors'
 import { getIssues } from '@/lib/issues'
 import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
 import { toPublicIssue } from '@/lib/privacy'
@@ -27,7 +28,7 @@ export async function GET(request: Request) {
       recentReports: recentActivity.get(issue.id)?.reports ?? 0,
       recentSupport: recentActivity.get(issue.id)?.supports ?? 0,
     })) })
-  } catch {
-    return NextResponse.json({ error: 'Trending data is unavailable until the issue database is ready.' }, { status: 503 })
+  } catch (error) {
+    return NextResponse.json({ error: publicErrorMessage(error, 'Trending data is unavailable right now.') }, { status: 503 })
   }
 }

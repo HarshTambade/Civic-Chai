@@ -37,6 +37,14 @@ for (const demo of users) {
   } else {
     const result = await admin.auth.admin.updateUserById(authUser.id, { password, email_confirm: true, user_metadata: userMetadata })
     if (result.error) throw result.error
+    // Shared demo identities must not stay locked to one tester's authenticator app.
+    const factors = await admin.auth.admin.mfa.listFactors({ userId: authUser.id })
+    if (factors.error) throw factors.error
+    for (const factor of factors.data.factors) {
+      const removed = await admin.auth.admin.mfa.deleteFactor({ id: factor.id, userId: authUser.id })
+      if (removed.error) throw removed.error
+    }
+    if (factors.data.factors.length) console.log(`Reset ${factors.data.factors.length} MFA factor(s) on ${demo.email}`)
   }
 
   let jurisdictionId = null

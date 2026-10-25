@@ -30,7 +30,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const status = body.status == null ? undefined : String(body.status)
     if (status && !VALID_STATUSES.includes(status)) return NextResponse.json({ error: 'Unsupported issue status.' }, { status: 400 })
     const { id } = await params
-    const before = await getIssueById(id, auth.client)
+    const before = await getIssueById(id, service ?? auth.client)
     if (!before) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
     const role = auth.actor?.role
     const allowedStatuses = role === 'department_operator' ? OPERATIONAL_STATUSES : role === 'department_supervisor' ? SUPERVISOR_STATUSES : AUTHORITY_STATUSES

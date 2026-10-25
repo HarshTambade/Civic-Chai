@@ -2,6 +2,15 @@
 -- records that do not depend on a government web page existing, and closure
 -- timestamps. Apply after 004_staff_mfa_rls.sql. Safe to apply more than once.
 
+-- Stop early when earlier migrations are missing; otherwise the version marker
+-- below would report a schema the database does not actually have.
+do $$
+begin
+  if not exists (select 1 from information_schema.columns where table_schema = 'public' and table_name = 'issues' and column_name = 'has_evidence') then
+    raise exception 'Apply 003_pilot_hardening.sql and 004_staff_mfa_rls.sql before 005_pilot_workflow.sql';
+  end if;
+end $$;
+
 -- General civic issues are routed here by the classifier; the department must
 -- exist for staff routing and SLA lookups to work.
 insert into public.departments(slug,name) values ('municipal-operations','Municipal Operations')

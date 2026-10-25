@@ -72,3 +72,9 @@ export function canAudit(role: AppRole) {
 export function requiresMfa(role: AppRole) {
   return role !== 'citizen'
 }
+
+/** True for the seeded shared demo identities (all on the reserved .local domain). */
+export function isDemoAccountEmail(email?: string | null) {
+  const normalized = email?.trim().toLowerCase()
+  return Boolean(normalized && DEMO_ACCOUNTS.some((account) => account.email === normalized))
+}
