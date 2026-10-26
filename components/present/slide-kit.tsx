@@ -3,8 +3,8 @@
 import { createContext, useContext, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-// Building blocks for the 1280×720 pitch-deck canvas. Sizes are in canvas pixels;
-// the deck scales the whole canvas to the screen, so text stays proportional.
+// Building blocks for the 1280×720 deck canvas. The deck scales the canvas to the screen.
+// One idea per slide, set in big type; a chai cup heats up as the story moves on.
 
 type Tone = 'light' | 'dark' | 'ink'
 
@@ -14,59 +14,57 @@ const TONES: Record<Tone, string> = {
   ink: 'bg-charcoal text-cream',
 }
 
-/** Set by the deck so each slide prints its own number in its own colours. */
-export const SlideNumber = createContext('')
+/** Provided by the deck: the slide number and how hot the chai is at this point. */
+export const SlideMeta = createContext({ number: '', heat: 20 })
 
-export function Slide({ tone = 'light', className, children }: { tone?: Tone; className?: string; children: ReactNode }) {
-  const number = useContext(SlideNumber)
+function heatColor(heat: number) {
+  return heat >= 75 ? '#c84630' : heat >= 50 ? '#b85c38' : heat >= 35 ? '#d99a3d' : '#a08a74'
+}
+
+/** A kulhad-style cup whose colour and steam follow the heat. */
+export function HeatCup({ heat, size = 56, showLabel = true }: { heat: number; size?: number; showLabel?: boolean }) {
+  const color = heatColor(heat)
+  const steam = heat >= 75 ? 3 : heat >= 45 ? 2 : heat >= 30 ? 1 : 0
   return (
-    <div className={cn('relative flex h-full w-full flex-col overflow-hidden px-[72px] py-[56px]', TONES[tone], className)}>
+    <div className="flex items-center gap-2" aria-label={`Chai heat ${heat} degrees`}>
+      <svg viewBox="0 0 48 52" width={size} height={size * 52 / 48} aria-hidden>
+        {[14, 22, 30].slice(0, steam).map((x, index) => (
+          <path key={x} d={`M${x} 14c-3-4 3-6 0-10`} stroke={color} strokeWidth="2.4" strokeLinecap="round" fill="none" className="animate-steam" style={{ animationDelay: `${index * 0.5}s` }} />
+        ))}
+        <path d="M6 20h32l-3.5 24a5 5 0 0 1-5 4.3H14.5a5 5 0 0 1-5-4.3L6 20Z" fill={color} />
+        <path d="M38 24h3a5 5 0 0 1 0 10h-4" stroke={color} strokeWidth="3" fill="none" />
+        <path d="M10 27h24" stroke="#fff8ec" strokeOpacity="0.35" strokeWidth="2" />
+      </svg>
+      {showLabel && <span className="font-display text-[22px] font-extrabold tabular-nums" style={{ color }}>{heat}°</span>}
+    </div>
+  )
+}
+
+export function Slide({ tone = 'light', cup = true, className, children }: { tone?: Tone; cup?: boolean; className?: string; children: ReactNode }) {
+  const { number, heat } = useContext(SlideMeta)
+  return (
+    <div className={cn('relative flex h-full w-full flex-col justify-center overflow-hidden px-[96px] py-[72px]', TONES[tone], className)}>
       {children}
-      {number && <span className="pointer-events-none absolute bottom-[20px] right-[72px] text-[13px] font-semibold opacity-50">{number}</span>}
+      {cup && <div className="absolute right-[56px] top-[44px]"><HeatCup heat={heat} size={40} /></div>}
+      {number && <span className="pointer-events-none absolute bottom-[28px] right-[56px] text-[13px] font-semibold tracking-wide opacity-45">{number}</span>}
     </div>
   )
 }
 
 export function Kicker({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('text-[15px] font-bold uppercase tracking-[0.22em] text-terracotta', className)}>{children}</p>
+  return <p className={cn('text-[17px] font-bold uppercase tracking-[0.28em] text-terracotta', className)}>{children}</p>
 }
 
-export function Title({ children, className }: { children: ReactNode; className?: string }) {
-  return <h2 className={cn('mt-3 font-display text-[46px] font-extrabold leading-[1.08] tracking-tight', className)}>{children}</h2>
+/** The one big line a slide exists to say. */
+export function Big({ children, className }: { children: ReactNode; className?: string }) {
+  return <h2 className={cn('mt-5 font-display text-[76px] font-extrabold leading-[1.02] tracking-tight', className)}>{children}</h2>
 }
 
-export function Lead({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={cn('mt-4 max-w-[980px] text-[21px] leading-[1.5] opacity-80', className)}>{children}</p>
+export function Line({ children, className }: { children: ReactNode; className?: string }) {
+  return <p className={cn('mt-7 max-w-[900px] text-[26px] leading-[1.45] opacity-75', className)}>{children}</p>
 }
 
-export function Stat({ value, label, note, tone = 'text-terracotta', dark = false }: { value: string; label: string; note?: string; tone?: string; dark?: boolean }) {
-  return (
-    <div className={cn('rounded-[22px] border p-6', dark ? 'border-white/15 bg-white/10' : 'border-black/10 bg-white/70')}>
-      <p className={cn('font-display text-[44px] font-extrabold leading-none', tone)}>{value}</p>
-      <p className="mt-3 text-[18px] font-semibold leading-snug">{label}</p>
-      {note && <p className="mt-1.5 text-[14px] leading-snug opacity-60">{note}</p>}
-    </div>
-  )
-}
-
-export function Card({ title, children, className, accent, dark = false }: { title?: ReactNode; children: ReactNode; className?: string; accent?: string; dark?: boolean }) {
-  return (
-    <div className={cn('rounded-[20px] border p-5', dark ? 'border-white/15 bg-white/10' : 'border-chai/15 bg-white/70', accent, className)}>
-      {title && <p className="font-display text-[20px] font-bold leading-snug">{title}</p>}
-      <div className={cn('text-[16px] leading-[1.5] opacity-80', title && 'mt-2')}>{children}</div>
-    </div>
-  )
-}
-
-/** Source line for any figure on a slide. Every number in the deck carries one. */
-export function Sources({ children }: { children: ReactNode }) {
-  return <p className="absolute bottom-[22px] left-[72px] right-[200px] text-[12px] leading-snug opacity-55">Sources: {children}</p>
-}
-
-export function Bullets({ items, className }: { items: ReactNode[]; className?: string }) {
-  return (
-    <ul className={cn('space-y-3 text-[19px] leading-[1.45]', className)}>
-      {items.map((item, index) => <li key={index} className="flex gap-3"><span aria-hidden className="mt-[10px] h-2 w-2 shrink-0 rounded-full bg-terracotta" />{item}</li>)}
-    </ul>
-  )
+/** Every figure in the deck carries its source. */
+export function Source({ children }: { children: ReactNode }) {
+  return <p className="absolute bottom-[28px] left-[96px] right-[260px] text-[13px] leading-snug opacity-50">Source: {children}</p>
 }

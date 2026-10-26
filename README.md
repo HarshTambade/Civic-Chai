@@ -448,6 +448,7 @@ Do not commit `.env.local`, service-role keys, provider tokens, or real citizen 
 | `/offline` | Offline state and recovery guidance |
 | `/q/[token]` | Signed locality QR landing page; verified codes open a pre-filled report |
 | `/knowledge` | Verified hubs, officers, documents and service targets for a PIN |
+| `/present` | Pitch deck (13 slides, keyboard/swipe, full screen, PDF export); linked from the landing page |
 | `/privacy` | Privacy notice (DPDP-oriented, mapped to actual data flows) |
 | `/community-guidelines` | Acceptable use, moderation and appeal process |
 

@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { ChevronLeft, ChevronRight, Download, LayoutGrid, Maximize, Minimize, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { SLIDES } from './slides'
-import { SlideNumber } from './slide-kit'
+import { SlideMeta } from './slide-kit'
 
 const WIDTH = 1280
 const HEIGHT = 720
@@ -20,7 +20,8 @@ function slideFromHash() {
 function Canvas({ index }: { index: number }) {
   return (
     <div role="group" aria-roledescription="slide" aria-label={`${index + 1} of ${SLIDES.length}: ${SLIDES[index].title}`} className="relative h-full w-full">
-      <SlideNumber.Provider value={`CivicChai · ${String(index + 1).padStart(2, '0')} / ${SLIDES.length}`}>{SLIDES[index].render()}</SlideNumber.Provider>
+      {/* The cup heats from 20° on the first slide to 95° on the last. */}
+      <SlideMeta.Provider value={{ number: `${String(index + 1).padStart(2, '0')} / ${SLIDES.length}`, heat: Math.round(20 + (75 * index) / Math.max(1, SLIDES.length - 1)) }}>{SLIDES[index].render()}</SlideMeta.Provider>
     </div>
   )
 }
