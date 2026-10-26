@@ -9,6 +9,8 @@ if (process.env.NODE_ENV === 'production' && process.env.ALLOW_DEMO_USER_SEED !=
 
 const admin = createClient(url, serviceKey, { auth: { persistSession: false, autoRefreshToken: false } })
 const password = 'CivicChai!2026'
+// The demo staff cover the whole demo area (see migration 007 service_pins).
+const demoServicePins = ['401208', '401209', '401210', '401211']
 const users = [
   { email: 'citizen@civicchai.local', name: 'Riya Kulkarni', role: 'citizen', pin: '401208' },
   { email: 'moderator@civicchai.local', name: 'Asha Deshmukh', role: 'moderator', pin: '401208' },
@@ -52,7 +54,7 @@ for (const demo of users) {
     const result = await admin.from('jurisdictions').select('id').eq('pin', demo.pin).limit(1).maybeSingle()
     if (!result.error) jurisdictionId = result.data?.id ?? null
   }
-  const { error } = await admin.from('profiles').upsert({
+  const profile = {
     id: authUser.id,
     display_name: demo.name,
     role: demo.role,
@@ -62,7 +64,11 @@ for (const demo of users) {
     jurisdiction_id: jurisdictionId,
     preferred_language: 'en',
     is_demo: true,
-  })
+  }
+  const covers = ['department_operator', 'department_supervisor', 'authority_admin', 'auditor'].includes(demo.role)
+  let { error } = await admin.from('profiles').upsert({ ...profile, ...(covers ? { service_pins: demoServicePins } : {}) })
+  // Databases without migration 007 have no service_pins column yet.
+  if (error && covers && /service_pins/.test(error.message)) ({ error } = await admin.from('profiles').upsert(profile))
   if (error) throw error
   console.log(`Ready: ${demo.role} · ${demo.email}`)
 }

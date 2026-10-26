@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { Crosshair, Loader2, MapPin } from 'lucide-react'
 import { CenterPinMap } from '@/components/maps'
 import type { ReverseGeocode } from '@/lib/geo'
-import { reverseLookup, useLiveLocation, usePincode } from './use-location'
+import { reverseLookup, useLiveLocation, usePinCoverage, usePincode } from './use-location'
 
 export type ReportLocation = { pin: string; locality: string; coordinates: { lat: number; lng: number } | null }
 
@@ -18,6 +18,7 @@ const INDIA_CENTER: [number, number] = [20.5937, 78.9629]
 export function LocationStep({ value, onChange, onConfirm, verifiedArea, autoDetect = true }: { value: ReportLocation; onChange: (next: Partial<ReportLocation>) => void; onConfirm: () => void; verifiedArea?: string; autoDetect?: boolean }) {
   const live = useLiveLocation()
   const pinInfo = usePincode(value.pin)
+  const covered = usePinCoverage(value.pin)
   const [center, setCenter] = useState<[number, number]>(value.coordinates ? [value.coordinates.lat, value.coordinates.lng] : INDIA_CENTER)
   const [zoom, setZoom] = useState(value.coordinates ? 17 : 5)
   const [place, setPlace] = useState<ReverseGeocode | null>(null)
@@ -122,6 +123,7 @@ export function LocationStep({ value, onChange, onConfirm, verifiedArea, autoDet
         </label>
       </fieldset>
       {value.pin.length === 6 && <p className="-mt-2 text-[11px] text-charcoal/55">{pinInfo.loading ? 'Checking PIN…' : pinInvalid ? `PIN ${value.pin} was not found. Check the number.` : pinInfo.info?.localities.length ? `Pick from ${pinInfo.info.localities.length} localities in this PIN, or type your own.` : ''}</p>}
+      {covered === false && <p role="status" className="-mt-2 rounded-lg border border-gold/50 bg-gold/10 px-3 py-2 text-xs leading-relaxed text-charcoal/75">No authority team covers PIN {value.pin} in this pilot yet. You can still file: the report is public and saved, and staff will see it once this area is added. For urgent problems, also use your municipality&apos;s official helpline.</p>}
       {manualPin.current && !value.coordinates && <p className="-mt-2 text-[11px] text-charcoal/55">Map moved to PIN {value.pin}. Drag it to mark the exact spot (optional).</p>}
 
       <button type="button" onClick={onConfirm} disabled={!ready || resolving} className="w-full rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream disabled:opacity-50">Confirm location</button>

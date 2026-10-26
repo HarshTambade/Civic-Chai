@@ -8,6 +8,7 @@ import { Logo } from '@/components/brand/logo'
 import { useAuth } from '@/components/auth-provider'
 import { civicFetch } from '@/lib/client-api'
 import { ROLE_LABELS, canManageIssues, canManageRegistry, canModerate, type AppRole } from '@/lib/roles'
+import { coveredPins } from '@/lib/scope'
 import {
   OverviewView,
   ComplaintsView,
@@ -172,7 +173,7 @@ export function ControlRoom() {
               <ShieldCheck className="h-4 w-4 text-leaf" /> RBAC active
             </p>
             <p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/50">
-              {user ? `${ROLE_LABELS[user.role]} · ${user.pin ? `PIN ${user.pin}` : 'jurisdiction scoped'}. Actions are recorded.` : 'Sign in required.'}
+              {user ? `${ROLE_LABELS[user.role]} · ${coveredPins(user).length ? `PIN${coveredPins(user).length > 1 ? 's' : ''} ${coveredPins(user).join(', ')}` : 'jurisdiction scoped'}${user.department ? ` · ${user.department}` : ''}. Actions are recorded.` : 'Sign in required.'}
             </p>
           </div>
           <Link

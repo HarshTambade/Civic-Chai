@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue } from '@/lib/scope'
 import { MIGRATION_HELP, isSchemaError, publicErrorMessage } from '@/lib/api-errors'
 import { createIssue, getIssues } from '@/lib/issues'
 import { getRequestContext } from '@/lib/api-auth'
@@ -29,13 +30,8 @@ export async function GET(request: Request) {
   } catch (error) {
     return NextResponse.json({ error: publicErrorMessage(error, 'Unable to load issues.') }, { status: 503 })
   }
-  if (actor?.role === 'department_operator' || actor?.role === 'department_supervisor') {
-    if (!actor.department || !actor.pin) issues = []
-    else issues = issues.filter((issue) => issue.department === actor.department && issue.pin === actor.pin)
-  } else if (actor?.role === 'authority_admin') {
-    if (!actor.pin) issues = []
-    else issues = issues.filter((issue) => issue.pin === actor.pin)
-  }
+  // Staff see only their area (and department); citizens see the public feed.
+  if (privileged) issues = issues.filter((issue) => canSeeIssue(actor, issue))
   if (status) issues = issues.filter((issue) => issue.status === status)
   if (department) issues = issues.filter((issue) => issue.department === department)
   if (pin) issues = issues.filter((issue) => issue.pin === pin)

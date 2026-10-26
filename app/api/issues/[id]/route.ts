@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue } from '@/lib/scope'
 import { getIssueById } from '@/lib/issues'
 import { getRequestContext } from '@/lib/api-auth'
 import { canManageIssues } from '@/lib/roles'
@@ -20,9 +21,6 @@ export async function GET(
     return NextResponse.json({ error: 'Issue not found' }, { status: 404 })
   }
 
-  if (actor?.role === 'department_operator' || actor?.role === 'department_supervisor') {
-    if (!actor.department || !actor.pin || issue.department !== actor.department || actor.pin !== issue.pin) return NextResponse.json({ error: 'Issue not found' }, { status: 404 })
-  }
-  if (actor?.role === 'authority_admin' && (!actor.pin || actor.pin !== issue.pin)) return NextResponse.json({ error: 'Issue not found' }, { status: 404 })
+  if (privileged && !canSeeIssue(actor, issue)) return NextResponse.json({ error: 'Issue not found' }, { status: 404 })
   return NextResponse.json(privileged ? issue : toPublicIssue(issue))
 }

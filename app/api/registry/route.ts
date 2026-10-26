@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { coveredPins, coversPin } from '@/lib/scope'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getSupabaseServiceClient } from '@/lib/supabase'
 
@@ -17,14 +18,14 @@ export async function GET(request: Request) {
   if (auth.response) return auth.response
   const service = getSupabaseServiceClient()
   if (!service) return NextResponse.json({ error: 'The authority registry needs a connected Supabase project with the server-only key. Local preview does not store registry records.' }, { status: 503 })
-  const pin = auth.actor?.pin
-  if (!pin) return NextResponse.json({ error: 'Your account has no authorized jurisdiction PIN. Ask the system administrator to set your profile scope.' }, { status: 403 })
-  const { data: jurisdictions, error: jurisdictionError } = await service.from('jurisdictions').select('id,name,level,pin,source_url,source_version,is_verified,verified_at').eq('pin', pin).order('level')
+  const pins = coveredPins(auth.actor)
+  if (!pins.length) return NextResponse.json({ error: 'Your account has no authorized jurisdiction PIN. Ask the system administrator to set your profile scope.' }, { status: 403 })
+  const { data: jurisdictions, error: jurisdictionError } = await service.from('jurisdictions').select('id,name,level,pin,source_url,source_version,is_verified,verified_at').in('pin', pins).order('level')
   if (jurisdictionError) return NextResponse.json({ error: 'Jurisdiction registry schema is not ready.' }, { status: 503 })
   const jurisdictionIds = (jurisdictions ?? []).map((item) => item.id)
   const [hubs, officers, documents, slaTargets] = await Promise.all([
-    service.from('authority_hubs').select('id,name,address,pin,ward,municipality,district,state,public_phone,public_email,source_url,source_version,is_verified,verified_at').eq('pin', pin).order('name'),
-    service.from('officer_registry').select('id,name,role,department,pin,hub,public_phone,public_email,source_url,source_version,is_verified,verified_at').eq('pin', pin).order('department'),
+    service.from('authority_hubs').select('id,name,address,pin,ward,municipality,district,state,public_phone,public_email,source_url,source_version,is_verified,verified_at').in('pin', pins).order('name'),
+    service.from('officer_registry').select('id,name,role,department,pin,hub,public_phone,public_email,source_url,source_version,is_verified,verified_at').in('pin', pins).order('department'),
     jurisdictionIds.length
       ? service.from('official_documents').select('id,title,authority,document_number,source_url,published_at,effective_at,version,checksum,is_verified,verified_at').in('jurisdiction_id', jurisdictionIds).order('published_at', { ascending: false })
       : Promise.resolve({ data: [], error: null }),
@@ -51,13 +52,13 @@ export async function PATCH(request: Request) {
     const table = REGISTRY_TABLES[kind]
     const id = String(body.id ?? '')
     if (!table || !/^[0-9a-f-]{36}$/i.test(id)) return NextResponse.json({ error: 'Choose a registry record to verify.' }, { status: 400 })
-    const pin = auth.actor?.pin
-    if (!pin) return NextResponse.json({ error: 'Your account has no authorized jurisdiction.' }, { status: 403 })
-    const { data: jurisdictions } = await service.from('jurisdictions').select('id').eq('pin', pin)
+    const pins = coveredPins(auth.actor)
+    if (!pins.length) return NextResponse.json({ error: 'Your account has no authorized jurisdiction.' }, { status: 403 })
+    const { data: jurisdictions } = await service.from('jurisdictions').select('id').in('pin', pins)
     const jurisdictionIds = (jurisdictions ?? []).map((row) => row.id)
     const { data: record, error: readError } = await service.from(table).select('*').eq('id', id).maybeSingle()
     if (readError || !record) return NextResponse.json({ error: 'Registry record not found.' }, { status: 404 })
-    const inScope = 'pin' in record && record.pin ? record.pin === pin : jurisdictionIds.includes(record.jurisdiction_id)
+    const inScope = 'pin' in record && record.pin ? pins.includes(record.pin) : jurisdictionIds.includes(record.jurisdiction_id)
     if (!inScope) return NextResponse.json({ error: 'Registry record is outside your jurisdiction.' }, { status: 404 })
     const verified = body.is_verified === true
     if (verified && (!isSecurePublicUrl(record.source_url) || !/(\.gov\.in|\.nic\.in)$/i.test(new URL(record.source_url).hostname))) {
@@ -78,6 +79,7 @@ export async function PATCH(request: Request) {
 export async function POST(request: Request) {
   const auth = await authorizeRoles(request, ['authority_admin'])
   if (auth.response) return auth.response
+  if (!auth.actor?.id) return NextResponse.json({ error: 'You do not have access to this action.' }, { status: 403 })
   const service = getSupabaseServiceClient()
   if (!service) return NextResponse.json({ error: 'Registry writes require the server-only Supabase service key.' }, { status: 503 })
   try {
@@ -85,7 +87,7 @@ export async function POST(request: Request) {
     const kind = String(body.kind ?? '')
     const pin = String(body.pin ?? '').trim()
     const sourceUrl = String(body.source_url ?? '').trim()
-    if (!/^\d{6}$/.test(pin) || !auth.actor?.pin || pin !== auth.actor.pin) return NextResponse.json({ error: 'PIN must be inside your authorized jurisdiction.' }, { status: 403 })
+    if (!/^\d{6}$/.test(pin) || !coversPin(auth.actor, pin)) return NextResponse.json({ error: 'PIN must be inside your authorized jurisdiction.' }, { status: 403 })
     if (!isSecurePublicUrl(sourceUrl)) return NextResponse.json({ error: 'Provide an HTTPS source URL for registry provenance.' }, { status: 400 })
     const verified = body.is_verified === true
     if (verified && !/(\.gov\.in|\.nic\.in)$/i.test(new URL(sourceUrl).hostname)) return NextResponse.json({ error: 'Only an official government or NIC domain can be marked verified.' }, { status: 400 })

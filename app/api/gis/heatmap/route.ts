@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue, coversPin } from '@/lib/scope'
 import { getRequestContext } from '@/lib/api-auth'
 import { canAudit, canManageIssues } from '@/lib/roles'
 import { getIssues } from '@/lib/issues'
@@ -15,13 +16,8 @@ export async function GET(request: Request) {
     if (hasSupabaseConfig() && !service) return NextResponse.json({ error: 'Civic map data requires the server-only Supabase service key.' }, { status: 503 })
     let issues = await getIssues(service ?? client, true)
 
-    if (actor.role === 'department_operator' || actor.role === 'department_supervisor') {
-      issues = actor.pin && actor.department
-        ? issues.filter((issue) => issue.pin === actor.pin && issue.department === actor.department)
-        : []
-    } else if (actor.role === 'authority_admin') {
-      issues = actor.pin ? issues.filter((issue) => issue.pin === actor.pin) : []
-    }
+    if (canManageIssues(actor.role)) issues = issues.filter((issue) => canSeeIssue(actor, issue))
+    else issues = issues.filter((issue) => coversPin(actor, issue.pin))
 
     const url = new URL(request.url)
     const department = url.searchParams.get('department')?.slice(0, 120) ?? ''

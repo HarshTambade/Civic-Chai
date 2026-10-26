@@ -13,12 +13,13 @@ export async function civicFetch(input: RequestInfo | URL, init: RequestInit = {
     try {
       const raw = localStorage.getItem('civicchai_demo_session')
       if (raw) {
-        const user = JSON.parse(raw) as Record<string, string>
+        const user = JSON.parse(raw) as Record<string, string> & { servicePins?: string[] }
         if (user.role) headers.set('x-civicchai-demo-role', user.role)
         if (user.id) headers.set('x-civicchai-demo-id', user.id)
         if (user.email) headers.set('x-civicchai-demo-email', user.email)
         if (user.name) headers.set('x-civicchai-demo-name', user.name)
         if (user.pin) headers.set('x-civicchai-demo-pin', user.pin)
+        if (Array.isArray(user.servicePins)) headers.set('x-civicchai-demo-service-pins', user.servicePins.join(','))
         if (user.department) headers.set('x-civicchai-demo-department', user.department)
       }
     } catch {

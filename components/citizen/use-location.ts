@@ -79,3 +79,18 @@ export function usePincode(pin: string) {
   }, [pin])
   return { info, loading }
 }
+
+/** Whether an authority team covers this PIN in the current deployment (null while unknown). */
+export function usePinCoverage(pin: string) {
+  const [covered, setCovered] = useState<boolean | null>(null)
+  useEffect(() => {
+    if (!/^\d{6}$/.test(pin)) { setCovered(null); return }
+    let cancelled = false
+    fetch(`/api/coverage?pin=${pin}`)
+      .then((response) => response.ok ? response.json() : null)
+      .then((payload) => { if (!cancelled) setCovered(typeof payload?.covered === 'boolean' ? payload.covered : null) })
+      .catch(() => { if (!cancelled) setCovered(null) })
+    return () => { cancelled = true }
+  }, [pin])
+  return covered
+}

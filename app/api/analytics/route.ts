@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue, coversPin } from '@/lib/scope'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getIssues } from '@/lib/issues'
 import { getFallbackAudit } from '@/lib/audit'
@@ -17,9 +18,9 @@ export async function GET(request: Request) {
   try {
     let issues = await getIssues(service ?? undefined, Boolean(service))
     // Same scope as the complaint queue: department + PIN for supervisors, PIN for the others.
-    issues = actor.role === 'department_supervisor'
-      ? issues.filter((issue) => Boolean(actor.pin && actor.department) && issue.pin === actor.pin && issue.department === actor.department)
-      : issues.filter((issue) => Boolean(actor.pin) && issue.pin === actor.pin)
+    issues = actor.role === 'auditor'
+      ? issues.filter((issue) => coversPin(actor, issue.pin))
+      : issues.filter((issue) => canSeeIssue(actor, issue))
     const ids = issues.map((issue) => issue.id)
 
     let events: StatusEvent[] = []

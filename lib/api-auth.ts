@@ -2,7 +2,12 @@ import { getSupabaseClient, getSupabaseClientForToken, isDemoModeEnabled, isLoca
 import { isAppRole, isDemoAccountEmail, requiresMfa, type AppRole } from '@/lib/roles'
 import { anonymousHandle } from '@/lib/anonymity'
 
-export type RequestActor = { id?: string; email?: string; name?: string; handle?: string; role?: AppRole; pin?: string; department?: string; demo?: boolean }
+export type RequestActor = { id?: string; email?: string; name?: string; handle?: string; role?: AppRole; pin?: string; servicePins?: string[]; department?: string; demo?: boolean }
+
+function servicePinsOf(profile: unknown): string[] {
+  const value = (profile as { service_pins?: unknown } | null)?.service_pins
+  return Array.isArray(value) ? value.filter((pin): pin is string => typeof pin === 'string') : []
+}
 
 export async function getRequestContext(request: Request) {
   const authorization = request.headers.get('authorization')
@@ -15,7 +20,11 @@ export async function getRequestContext(request: Request) {
       client.auth.getClaims(token),
     ])
     if (error || !data.user || verifiedToken.error || !verifiedToken.data?.claims) return { actor: null as RequestActor | null, client, authenticated: false, mfaRequired: false }
-    const { data: profile } = await client.from('profiles').select('role, display_name, pin, department').eq('id', data.user.id).maybeSingle()
+    // service_pins arrives with migration 007; older databases fall back to the single PIN.
+    const scoped = await client.from('profiles').select('role, display_name, pin, department, service_pins').eq('id', data.user.id).maybeSingle()
+    const { data: profile } = scoped.error
+      ? await client.from('profiles').select('role, display_name, pin, department').eq('id', data.user.id).maybeSingle()
+      : scoped
     // Authorization comes from the protected profile row, never editable auth metadata.
     const role = profile?.role
     const validRole = isAppRole(role) ? role : undefined
@@ -30,6 +39,7 @@ export async function getRequestContext(request: Request) {
         handle: anonymousHandle(data.user.id),
         role: mfaRequired ? undefined : validRole,
         pin: profile?.pin ?? undefined,
+        servicePins: servicePinsOf(profile),
         department: profile?.department ?? undefined,
       } satisfies RequestActor,
       client,
@@ -48,6 +58,7 @@ export async function getRequestContext(request: Request) {
       handle: anonymousHandle(request.headers.get('x-civicchai-demo-id') ?? role),
       role,
       pin: request.headers.get('x-civicchai-demo-pin') ?? undefined,
+      servicePins: (request.headers.get('x-civicchai-demo-service-pins') ?? '').split(',').filter(Boolean),
       department: request.headers.get('x-civicchai-demo-department') ?? undefined,
       demo: true,
     } : null

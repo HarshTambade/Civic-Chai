@@ -32,13 +32,18 @@ function userFromProfile(authUser: User, profile?: Record<string, unknown> | nul
     handle: anonymousHandle(authUser.id),
     role,
     pin: typeof profile?.pin === 'string' ? profile.pin : undefined,
+    servicePins: Array.isArray(profile?.service_pins) ? profile.service_pins.filter((pin): pin is string => typeof pin === 'string') : [],
     department: typeof profile?.department === 'string' ? profile.department : undefined,
   }
 }
 
 /** Reads the protected profile role and whether this session may open staff tools. */
 async function resolveUser(supabase: SupabaseClient, authUser: User, accessToken?: string) {
-  const { data: profile, error } = await supabase.from('profiles').select('role, display_name, pin, department').eq('id', authUser.id).maybeSingle()
+  // service_pins arrives with migration 007; older databases fall back to the single PIN.
+  const scoped = await supabase.from('profiles').select('role, display_name, pin, department, service_pins').eq('id', authUser.id).maybeSingle()
+  const { data: profile, error } = scoped.error
+    ? await supabase.from('profiles').select('role, display_name, pin, department').eq('id', authUser.id).maybeSingle()
+    : scoped
   const user = userFromProfile(authUser, profile)
   if (!user) return { user: null, mfaVerified: false, profileError: error }
   // Citizens never need MFA; seeded demo staff skip it only while demo mode is on.

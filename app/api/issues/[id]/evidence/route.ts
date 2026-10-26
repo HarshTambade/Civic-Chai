@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue } from '@/lib/scope'
 import { getRequestContext } from '@/lib/api-auth'
 import { getIssueById } from '@/lib/issues'
 import { canManageIssues } from '@/lib/roles'
@@ -14,11 +15,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
     const issue = await getIssueById(id, service ?? client, true)
     if (!issue) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
     const manager = canManageIssues(actor.role ?? 'citizen')
-    const inManagerScope = actor.role === 'authority_admin'
-      ? Boolean(actor.pin && actor.pin === issue.pin)
-      : actor.role === 'department_operator' || actor.role === 'department_supervisor'
-        ? Boolean(actor.pin && actor.department && actor.pin === issue.pin && actor.department === issue.department)
-        : false
+    const inManagerScope = canSeeIssue(actor, issue)
     if ((manager && !inManagerScope) || (!manager && issue.createdBy !== actor.id)) return NextResponse.json({ error: 'Evidence is outside your authorized access.' }, { status: 404 })
 
     if (!service) {

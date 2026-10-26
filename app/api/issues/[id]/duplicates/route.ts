@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue } from '@/lib/scope'
 import { authorizeRoles } from '@/lib/api-auth'
 import { findDuplicateCandidates } from '@/lib/scoring'
 import { getIssueById, getIssues } from '@/lib/issues'
@@ -8,12 +9,10 @@ import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
 
 const REVIEW_ROLES = ['moderator', 'department_supervisor', 'authority_admin'] as const
 
-function isInScope(actor: { role?: string; pin?: string; department?: string } | null, issue: { pin: string; department: string }) {
+function isInScope(actor: { role?: string; pin?: string; servicePins?: string[]; department?: string } | null, issue: { pin: string; department: string }) {
   if (!actor) return false
   if (actor.role === 'moderator') return true
-  if (actor.role === 'authority_admin') return Boolean(actor.pin && actor.pin === issue.pin)
-  if (actor.role === 'department_supervisor') return Boolean(actor.department && actor.department === issue.department && actor.pin === issue.pin)
-  return false
+  return canSeeIssue(actor, issue)
 }
 
 async function loadReviewData(request: Request, id: string) {

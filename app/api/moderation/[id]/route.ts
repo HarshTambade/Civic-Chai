@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { coversPin } from '@/lib/scope'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getLocalModerationReports, type ModerationStatus } from '@/lib/moderation'
 import { getSupabaseServiceClient } from '@/lib/supabase'
@@ -34,7 +35,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         issueId = comment?.issue_id ?? null
       }
       const { data: issue } = issueId ? await service.from('issues').select('pin').eq('id', issueId).maybeSingle() : { data: null }
-      if (!issue || issue.pin !== auth.actor.pin) return NextResponse.json({ error: 'Report is outside your jurisdiction.' }, { status: 404 })
+      if (!issue || !coversPin(auth.actor, issue.pin)) return NextResponse.json({ error: 'Report is outside your jurisdiction.' }, { status: 404 })
     }
     const { error } = await service.from('moderation_reports').update({ status, moderator_note: moderatorNote || null, reviewed_by: auth.actor?.id ?? null, reviewed_at: new Date().toISOString() }).eq('id', id)
     if (error) throw error

@@ -21,8 +21,8 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 
 ## Required before real pilot submissions
 
-1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql`, `004_staff_mfa_rls.sql`, `005_pilot_workflow.sql` and `006_anonymous_handles.sql` in order (or import the complete `supabase/schema.sql` into a new project).
-2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready (schema version 6) and `/api/system/health` reports the database connected.
+1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql`, `004_staff_mfa_rls.sql`, `005_pilot_workflow.sql`, `006_anonymous_handles.sql` and `007_service_area_pins.sql` in order (or import the complete `supabase/schema.sql` into a new project).
+2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready (schema version 7) and `/api/system/health` reports the database connected.
 3. Rotate any Supabase service-role or Groq credentials that were shared outside the secret manager, and store the replacement only in deployment secrets. Never commit `.env.local`.
 4. Set `NEXT_PUBLIC_CIVICCHAI_DEMO_MODE=false` so `/login` does not list shared credentials and demo staff accounts require MFA. Replace shared demo passwords, remove unused demos, provision individual staff accounts, set jurisdiction/department scope, and enroll each staff account in TOTP MFA. Use demo accounts only in a controlled pilot environment.
 5. Enter authority-approved, source-verified jurisdiction/hub/department/officer records, public contacts, lawful privacy notice, retention/deletion rules, and applicable legal/service-standard documents. Keep the registry unverified until the source is checked.
@@ -44,6 +44,7 @@ Issue and phone intake are on by default (sign-in required, rate limited); set `
 - Joining a suggested duplicate adds one support and one corroborating report per account; reviewers still decide merges.
 - Moderation decisions require a documented note; only the reporter can move a report to `appealed`.
 - Authority administrators can verify or withdraw verification of existing registry records; only official-domain sources can be verified.
+- Staff scope is an area of one or more PIN codes (`pin` plus `service_pins`). Set every pilot PIN on the authority and department accounts; citizens are warned before filing when no authority covers their PIN. General issues (Municipal Operations) appear to the authority administrator, who routes them to a department.
 - Citizens appear publicly only by an anonymous handle such as `KadakKulhad-3F9A`; sign-up no longer asks for a real name.
 - "Use my current location" sends the device coordinates once to the configured Nominatim service to suggest the PIN and locality; the citizen confirms them. Exact coordinates are stored only when attached to a report and are visible only to authorized staff. The public community map groups reports into cells of about 1 km. List OpenStreetMap/Nominatim and the India Post PIN lookup as processors in the privacy notice.
 - STREE's optional on-device model runs with a system prompt that forbids inventing laws, officials, contacts or deadlines, and is hidden on staff and sign-in screens.

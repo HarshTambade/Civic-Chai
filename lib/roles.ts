@@ -16,6 +16,8 @@ export type AppUser = {
   name: string
   role: AppRole
   pin?: string
+  /** Extra PIN codes this staff account covers, in addition to `pin`. */
+  servicePins?: string[]
   department?: string
   /** Public pseudonym; the real name is never shown to other users. */
   handle?: string
@@ -32,14 +34,17 @@ export const ROLE_LABELS: Record<AppRole, string> = {
   auditor: 'Auditor',
 }
 
+/** The demo staff cover the whole demo area, so reports from any demo PIN reach a team. */
+export const DEMO_SERVICE_PINS = ['401208', '401209', '401210', '401211']
+
 export const DEMO_ACCOUNTS: Array<AppUser & { password: string }> = [
   { id: 'demo-citizen', email: 'citizen@civicchai.local', password: 'CivicChai!2026', name: 'Riya Kulkarni', role: 'citizen', pin: '401208', demo: true },
   { id: 'demo-moderator', email: 'moderator@civicchai.local', password: 'CivicChai!2026', name: 'Asha Deshmukh', role: 'moderator', pin: '401208', demo: true },
-  { id: 'demo-operator', email: 'operator@civicchai.local', password: 'CivicChai!2026', name: 'R. Kulkarni', role: 'department_operator', pin: '401208', department: 'Municipal Public Lighting', demo: true },
-  { id: 'demo-supervisor', email: 'supervisor@civicchai.local', password: 'CivicChai!2026', name: 'S. Mehta', role: 'department_supervisor', pin: '401208', department: 'Municipal Public Lighting', demo: true },
-  { id: 'demo-authority-admin', email: 'authority@civicchai.local', password: 'CivicChai!2026', name: 'Ward Authority Admin', role: 'authority_admin', pin: '401208', demo: true },
+  { id: 'demo-operator', email: 'operator@civicchai.local', password: 'CivicChai!2026', name: 'R. Kulkarni', role: 'department_operator', pin: '401208', servicePins: DEMO_SERVICE_PINS, department: 'Municipal Public Lighting', demo: true },
+  { id: 'demo-supervisor', email: 'supervisor@civicchai.local', password: 'CivicChai!2026', name: 'S. Mehta', role: 'department_supervisor', pin: '401208', servicePins: DEMO_SERVICE_PINS, department: 'Municipal Public Lighting', demo: true },
+  { id: 'demo-authority-admin', email: 'authority@civicchai.local', password: 'CivicChai!2026', name: 'Ward Authority Admin', role: 'authority_admin', pin: '401208', servicePins: DEMO_SERVICE_PINS, demo: true },
   { id: 'demo-system-admin', email: 'system-admin@civicchai.local', password: 'CivicChai!2026', name: 'CivicChai System Admin', role: 'system_admin', demo: true },
-  { id: 'demo-auditor', email: 'auditor@civicchai.local', password: 'CivicChai!2026', name: 'Independent Auditor', role: 'auditor', pin: '401208', demo: true },
+  { id: 'demo-auditor', email: 'auditor@civicchai.local', password: 'CivicChai!2026', name: 'Independent Auditor', role: 'auditor', pin: '401208', servicePins: DEMO_SERVICE_PINS, demo: true },
 ]
 
 export const GOV_ROLES: AppRole[] = [

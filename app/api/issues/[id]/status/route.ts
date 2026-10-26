@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { canSeeIssue } from '@/lib/scope'
 import { getFallbackIssueFollowers, getFallbackIssueSupporters, getIssueById, updateIssue } from '@/lib/issues'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getSupabaseServiceClient, hasSupabaseConfig } from '@/lib/supabase'
@@ -36,8 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const allowedStatuses = role === 'department_operator' ? OPERATIONAL_STATUSES : role === 'department_supervisor' ? SUPERVISOR_STATUSES : AUTHORITY_STATUSES
     if (status && status !== before.status && !allowedStatuses.includes(status)) return NextResponse.json({ error: 'This role cannot set that issue status. Duplicate and community verification decisions use their dedicated review flows.' }, { status: 403 })
     if (status === 'Closed' && status !== before.status && !['Resolved', 'Community Verified'].includes(before.status)) return NextResponse.json({ error: 'An issue must be resolved before it can be closed.' }, { status: 409 })
-    if (before && (auth.actor?.role === 'department_operator' || auth.actor?.role === 'department_supervisor') && (!auth.actor.department || !auth.actor.pin || before.department !== auth.actor.department || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your assigned department and PIN scope.' }, { status: 404 })
-    if (before && auth.actor?.role === 'authority_admin' && (!auth.actor.pin || before.pin !== auth.actor.pin)) return NextResponse.json({ error: 'Issue is outside your authorized jurisdiction.' }, { status: 404 })
+    if (!canSeeIssue(auth.actor, before)) return NextResponse.json({ error: 'Issue is outside your assigned area and department.' }, { status: 404 })
     const department = typeof body.department === 'string' && body.department.trim() ? body.department.trim().slice(0, 120) : undefined
     let officer = typeof body.officer === 'string' && body.officer.trim() ? body.officer.trim().slice(0, 120) : undefined
     if (role === 'department_operator' && (department !== undefined || officer !== undefined)) return NextResponse.json({ error: 'Department operators can update issue progress but cannot assign departments or officers.' }, { status: 403 })

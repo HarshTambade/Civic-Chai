@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { coversPin } from '@/lib/scope'
 import QRCode from 'qrcode'
 import { authorizeRoles } from '@/lib/api-auth'
 import { recordFallbackAudit } from '@/lib/audit'
@@ -29,13 +30,13 @@ export async function POST(request: Request) {
     const locality = String(body.locality ?? '').trim().slice(0, 120)
     const ward = String(body.ward ?? '').trim().slice(0, 100)
     if (!/^\d{6}$/.test(pin) || !locality) return NextResponse.json({ error: 'Enter a six-digit PIN and a locality name.' }, { status: 400 })
-    if (!auth.actor?.pin || auth.actor.pin !== pin) return NextResponse.json({ error: 'You can create QR codes only for your authorized PIN.' }, { status: 403 })
+    if (!coversPin(auth.actor, pin)) return NextResponse.json({ error: 'You can create QR codes only for PINs in your authorized area.' }, { status: 403 })
     const token = signQrArea({ pin, locality, ward })
     const url = `${publicOrigin(request)}/q/${token}`
     const svg = await QRCode.toString(url, { type: 'svg', errorCorrectionLevel: 'M', margin: 2, color: { dark: '#2b2118', light: '#ffffff' } })
     const service = getSupabaseServiceClient()
-    if (service) await service.from('audit_logs').insert({ actor_id: auth.actor.id, action: 'qr.created', details: { pin, locality, ward: ward || null } })
-    else recordFallbackAudit('qr.created', undefined, auth.actor.id, { pin, locality, ward: ward || null })
+    if (service) await service.from('audit_logs').insert({ actor_id: auth.actor?.id, action: 'qr.created', details: { pin, locality, ward: ward || null } })
+    else recordFallbackAudit('qr.created', undefined, auth.actor?.id, { pin, locality, ward: ward || null })
     return NextResponse.json({ url, svg, area: { pin, locality, ward } }, { status: 201 })
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : 'Unable to create the QR code.' }, { status: 400 })

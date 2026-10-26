@@ -6,6 +6,7 @@ import { useAuth } from '@/components/auth-provider'
 import type { AppRole } from '@/lib/roles'
 import type { IssueRecord } from '@/lib/types'
 import { cn } from '@/lib/utils'
+import { coveredPins } from '@/lib/scope'
 import {
   Activity,
   AlertTriangle,
@@ -208,7 +209,7 @@ export function RoleDashboard({ role, onNavigate }: Props) {
           <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-chai">{copy.eyebrow}</p>
           <h2 className="mt-2 font-display text-2xl font-extrabold text-sidebar-foreground sm:text-3xl">{copy.title}</h2>
           <p className="mt-2 text-sm leading-relaxed text-sidebar-foreground/60">{copy.description}</p>
-          <p className="mt-3 text-[11px] font-medium text-sidebar-foreground/40">{user?.department ? `${user.department} · ` : ''}{user?.pin ? `PIN ${user.pin}` : role === 'authority_admin' || role === 'auditor' ? 'Authorized jurisdiction scope' : 'Role-scoped workspace'}</p>
+          <p className="mt-3 text-[11px] font-medium text-sidebar-foreground/40">{user?.department ? `${user.department} · ` : ''}{coveredPins(user).length ? `PIN${coveredPins(user).length > 1 ? 's' : ''} ${coveredPins(user).join(', ')}` : role === 'authority_admin' || role === 'auditor' ? 'Authorized jurisdiction scope' : 'Role-scoped workspace'}</p>
         </div>
         {role === 'department_operator' && <button type="button" onClick={() => onNavigate('complaints')} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-bold text-charcoal">Open my queue<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>}
         {role === 'moderator' && <button type="button" onClick={() => onNavigate('moderation')} className="inline-flex min-h-11 shrink-0 items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-bold text-charcoal">Review reports<ArrowRight aria-hidden="true" className="h-4 w-4" /></button>}

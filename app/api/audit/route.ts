@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server'
+import { coveredPins } from '@/lib/scope'
 import { authorizeRoles } from '@/lib/api-auth'
 import { getFallbackAudit } from '@/lib/audit'
 import { getSupabaseServiceClient } from '@/lib/supabase'
@@ -8,11 +9,12 @@ export async function GET(request: Request) {
   if (auth.response) return auth.response
   const service = getSupabaseServiceClient()
   if (!service) return NextResponse.json({ events: getFallbackAudit() })
-  if (auth.actor?.role === 'authority_admin' && !auth.actor.pin) return NextResponse.json({ events: [] })
+  const pins = coveredPins(auth.actor)
+  if (!pins.length) return NextResponse.json({ events: [] })
 
   let issueIds: string[] | undefined
   if (auth.actor?.role === 'authority_admin' || auth.actor?.role === 'auditor') {
-    const { data: issues } = await service.from('issues').select('id').eq('pin', auth.actor.pin ?? '')
+    const { data: issues } = await service.from('issues').select('id').in('pin', pins)
     issueIds = (issues ?? []).map((issue) => issue.id)
     if (!issueIds.length) return NextResponse.json({ events: [] })
   }
