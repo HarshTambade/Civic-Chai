@@ -15,6 +15,7 @@ export function StatusBadge({ status }: { status: IssueStatus }) {
     Closed: 'bg-leaf/15 text-leaf',
     Duplicate: 'bg-gold/20 text-chai',
     'Under Review': 'bg-terracotta/15 text-terracotta',
+    Withdrawn: 'bg-muted text-muted-foreground line-through decoration-1',
   }
   return (
     <span

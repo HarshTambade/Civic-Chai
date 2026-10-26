@@ -5,7 +5,7 @@ import Link from 'next/link'
 import { cn } from '@/lib/utils'
 import type { IssueRecord } from '@/lib/types'
 import { fetchIssuesWithCache } from '@/lib/offline-cache'
-import { civicFetch, submitIssuePayload } from '@/lib/client-api'
+import { civicFetch, submitIssuePayload, withdrawIssueRequest } from '@/lib/client-api'
 import { listOfflineDrafts, syncOfflineDrafts, type OfflineIssueDraft } from '@/lib/offline-queue'
 import { useAuth } from '@/components/auth-provider'
 import { useLanguage } from '@/components/language-provider'
@@ -17,7 +17,7 @@ import { localProfileKey, notifyProfileUpdated, useServiceArea } from './use-ser
 import { hottestScore } from '@/lib/issue-helpers'
 import { useLiveLocation, usePincode } from './use-location'
 import { CommunityMap } from '@/components/maps'
-import { HapticsToggle } from '@/components/haptics'
+import { HapticsToggle, haptic } from '@/components/haptics'
 import type { PublicMapCell } from '@/lib/heatmap'
 import {
   MapPin,
@@ -29,6 +29,8 @@ import {
   ChevronRight,
   Check,
   LogOut,
+  Trash2,
+  Undo2,
 } from 'lucide-react'
 
 /* ---------------- Local Chai (Home feed) ---------------- */
@@ -225,6 +227,10 @@ export function MyCharchaView() {
   const [verificationBusy, setVerificationBusy] = useState(false)
   const [notifications, setNotifications] = useState<Array<{ id: string; issue_id: string | null; title: string; body: string; read_at: string | null; created_at: string }>>([])
   const [notificationsOpen, setNotificationsOpen] = useState(false)
+  const [withdrawOpen, setWithdrawOpen] = useState(false)
+  const [withdrawReason, setWithdrawReason] = useState('')
+  const [withdrawBusy, setWithdrawBusy] = useState(false)
+  const [withdrawMessage, setWithdrawMessage] = useState('')
 
   async function refreshMyChai() {
     const pending = await listOfflineDrafts().catch(() => [])
@@ -279,6 +285,25 @@ export function MyCharchaView() {
     const response = await civicFetch('/api/notifications', { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ mark_all: true }) })
     const payload = await response.json()
     if (response.ok) setNotifications(Array.isArray(payload.notifications) ? payload.notifications : [])
+  }
+
+  async function takeBack(issue: IssueRecord) {
+    setWithdrawBusy(true)
+    setWithdrawMessage('')
+    try {
+      const result = await withdrawIssueRequest(issue.id, withdrawReason)
+      haptic('success')
+      setWithdrawOpen(false)
+      setWithdrawReason('')
+      setSyncMessage(result.message)
+      if (result.outcome === 'deleted') setActive(null)
+      await refreshMyChai()
+    } catch (error) {
+      haptic('error')
+      setWithdrawMessage(error instanceof Error ? error.message : 'The complaint could not be withdrawn.')
+    } finally {
+      setWithdrawBusy(false)
+    }
   }
 
   async function verifyResolution(action: 'confirm' | 'reopen') {
@@ -345,7 +370,7 @@ export function MyCharchaView() {
           {filteredIssues.slice(0, 20).map((issue) => (
             <button
               key={issue.id}
-              onClick={() => setActive(issue)}
+              onClick={() => { setActive(issue); setWithdrawOpen(false); setWithdrawMessage('') }}
               className={cn(
                 'flex w-full items-center gap-3 rounded-2xl border bg-card p-4 text-left transition-colors',
                 activeIssue?.id === issue.id ? 'border-chai shadow-sm' : 'border-border',
@@ -379,6 +404,29 @@ export function MyCharchaView() {
               <CivicTimeline status={activeIssue.status} issueId={activeIssue.id} />
             </div>
             {user?.role === 'citizen' && activeIssue.myRelationship && ['Resolved', 'Community Verified'].includes(activeIssue.status) && <div className="mt-5 rounded-xl border border-gold/40 bg-gold/10 p-4"><p className="text-sm font-semibold text-charcoal">Did the authority resolve this issue?</p><p className="mt-1 text-xs text-charcoal/60">Your response becomes part of the public status history and audit trail.</p><div className="mt-3 flex flex-wrap gap-2"><button disabled={verificationBusy || activeIssue.status === 'Community Verified'} onClick={() => void verifyResolution('confirm')} className="rounded-lg bg-leaf px-3 py-2 text-xs font-semibold text-cream disabled:opacity-50">Confirm resolved</button><button disabled={verificationBusy} onClick={() => void verifyResolution('reopen')} className="rounded-lg border border-terracotta/40 px-3 py-2 text-xs font-semibold text-terracotta disabled:opacity-50">Still unresolved</button></div>{verificationMessage && <p role="status" className="mt-2 text-xs text-charcoal/70">{verificationMessage}</p>}</div>}
+            {activeIssue.myRelationship === 'filed' && !['Resolved', 'Community Verified', 'Closed', 'Duplicate', 'Withdrawn'].includes(activeIssue.status) && (
+              <div className="mt-5 rounded-xl border border-border p-4">
+                {!withdrawOpen ? (
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <p className="text-xs text-charcoal/60">Filed by mistake, or the problem is gone?</p>
+                    <button type="button" onClick={() => { setWithdrawOpen(true); setWithdrawMessage('') }} className="inline-flex items-center gap-1.5 rounded-lg border border-heat/40 px-3 py-2 text-xs font-semibold text-heat"><Undo2 className="h-3.5 w-3.5" />Take back complaint</button>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-sm font-semibold text-charcoal">Take back {activeIssue.documentId}?</p>
+                    <p className="mt-1 text-xs leading-relaxed text-charcoal/60">{['Filed', 'AI Classified'].includes(activeIssue.status) && !activeIssue.supporters && !activeIssue.comments ? 'Nobody has acted on it yet, so it will be deleted permanently.' : 'The authority has already seen it, so it will be marked withdrawn and removed from public view. Its status history stays in the audit trail.'}</p>
+                    <label className="mt-3 block text-xs font-semibold text-charcoal/70">Reason (optional)
+                      <input value={withdrawReason} onChange={(event) => setWithdrawReason(event.target.value.slice(0, 300))} placeholder="For example, filed by mistake, or it was fixed" className="mt-1 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm font-normal" />
+                    </label>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button type="button" disabled={withdrawBusy} onClick={() => void takeBack(activeIssue)} className="inline-flex items-center gap-1.5 rounded-lg bg-heat px-3 py-2 text-xs font-semibold text-cream disabled:opacity-60"><Trash2 className="h-3.5 w-3.5" />{withdrawBusy ? 'Taking back…' : 'Yes, take it back'}</button>
+                      <button type="button" disabled={withdrawBusy} onClick={() => setWithdrawOpen(false)} className="rounded-lg border border-border px-3 py-2 text-xs font-semibold">Keep it</button>
+                    </div>
+                  </div>
+                )}
+                {withdrawMessage && <p role="alert" className="mt-2 text-xs text-heat">{withdrawMessage}</p>}
+              </div>
+            )}
             <div className="mt-5 rounded-xl bg-secondary/50 p-4 text-sm">
               <p className="font-semibold text-charcoal">What happens next</p>
               <p className="mt-1 text-charcoal/65">The suggested department is {activeIssue.department}. Assignment and service targets are shown only when the responsible authority has configured them. CivicChai provides tracking and education; it is not a statutory appeal body.</p>

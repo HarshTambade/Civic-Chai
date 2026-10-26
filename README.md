@@ -373,6 +373,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    - `supabase/migrations/005_pilot_workflow.sql`
    - `supabase/migrations/006_anonymous_handles.sql`
    - `supabase/migrations/007_service_area_pins.sql`
+   - `supabase/migrations/008_reporter_withdrawal.sql`
 
    `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
 3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
@@ -422,6 +423,7 @@ Copy `.env.example` as a reference, then supply only the values for integrations
 | `NOMINATIM_URL` | Optional live-location lookup | Reverse geocoding (device location → PIN and locality) and PIN centring. Defaults to the public OpenStreetMap Nominatim service, which allows light use only; use your own instance for a busy pilot. |
 | `PINCODE_API_URL` | Optional PIN validation | Post-office localities for a PIN. Defaults to `https://api.postalpincode.in`. |
 | `NEXT_PUBLIC_MAP_ATTRIBUTION` | Map attribution | Attribution HTML shown with the map. Keep provider attribution requirements. |
+| `AZURE_SPEECH_KEY`, `AZURE_SPEECH_REGION` | Call agent voice | Optional. Natural female voices for the `/voice-agent` call (en-IN Neerja, hi-IN Swara, mr-IN Aarohi) through Azure AI Speech. Without them the call uses the device's voices, preferring female ones. |
 | `TWILIO_AUTH_TOKEN` | Phone IVR | Secret used to validate incoming Twilio signatures. Configure the provider's webhook URL to `/api/voice/ivr`. |
 | `CIVICCHAI_PUBLIC_INTAKE_ENABLED` | Pausing issue and phone intake | Intake (sign-in required, rate limited) is on by default. Set to `false` to pause filing, for example during maintenance or before the authority approves go-live. Accepts `true`/`false`, `1`/`0`, `yes`/`no`. |
 | `CIVICCHAI_EVIDENCE_UPLOADS_ENABLED` | Production evidence uploads | Set to `true` only after an approved malware scanning or file-handling workflow is active. Production defaults to disabled. |
@@ -518,6 +520,7 @@ An issue stores a public-facing document ID and description, original/normalized
 - `supabase/migrations/003_pilot_hardening.sql`: hardened server-side issue actions, role transition checks, geographic scope fields, and schema version marker.
 - `supabase/migrations/004_staff_mfa_rls.sql`: requires MFA for staff data access through both app routes and direct database API requests.
 - `supabase/migrations/007_service_area_pins.sql`: lets staff cover several PIN codes (`profiles.service_pins`), enforced in API scope checks and database functions; gives the demo staff the demo PINs 401208–401211; sets schema version 7.
+- `supabase/migrations/008_reporter_withdrawal.sql`: lets the person who filed a complaint take it back (`withdraw_issue`). Untouched complaints are deleted; ones already routed or worked on become `Withdrawn`, leave public view and keep their audit trail; sets schema version 8.
 - `supabase/migrations/006_anonymous_handles.sql`: gives every profile a stable anonymous public handle (for example `KadakKulhad-3F9A`), stamps comments with the author's handle, stops defaulting private names to the email prefix, and sets schema version 6.
 - `supabase/migrations/005_pilot_workflow.sql`: adds the `Municipal Operations` fallback department, accepts a public resolution note in place of a mandatory official URL, records `closed_at`, and sets schema version 5 (checked by `/api/health`).
 - `supabase/schema.sql`: consolidated fresh-project schema.

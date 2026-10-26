@@ -33,6 +33,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     const { id } = await params
     const before = await getIssueById(id, service ?? auth.client)
     if (!before) return NextResponse.json({ error: 'Issue not found.' }, { status: 404 })
+    if (before.status === 'Withdrawn') return NextResponse.json({ error: 'The reporter withdrew this complaint, so it can no longer be changed.' }, { status: 409 })
     const role = auth.actor?.role
     const allowedStatuses = role === 'department_operator' ? OPERATIONAL_STATUSES : role === 'department_supervisor' ? SUPERVISOR_STATUSES : AUTHORITY_STATUSES
     if (status && status !== before.status && !allowedStatuses.includes(status)) return NextResponse.json({ error: 'This role cannot set that issue status. Duplicate and community verification decisions use their dedicated review flows.' }, { status: 403 })

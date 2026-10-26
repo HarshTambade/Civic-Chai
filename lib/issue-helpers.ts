@@ -14,6 +14,7 @@ export const TIMELINE_STEPS: { label: string; key: IssueStatus }[] = [
 /** Where a status sits on the main timeline; side states map to the step they pause. */
 export function timelineIndex(status: IssueStatus) {
   if (status === 'Under Review') return TIMELINE_STEPS.findIndex((step) => step.key === 'AI Classified')
+  if (status === 'Withdrawn') return -1
   if (status === 'Duplicate') return TIMELINE_STEPS.findIndex((step) => step.key === 'Filed')
   return TIMELINE_STEPS.findIndex((step) => step.key === status)
 }

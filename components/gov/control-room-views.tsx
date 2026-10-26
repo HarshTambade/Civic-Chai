@@ -48,7 +48,7 @@ export function OverviewView() {
     }).catch((error) => { if (!cancelled) setLoadError(error instanceof Error ? error.message : 'Unable to load issue metrics.') })
     return () => { cancelled = true }
   }, [])
-  const open = issues.filter((issue) => !['Resolved', 'Community Verified', 'Closed', 'Duplicate'].includes(issue.status))
+  const open = issues.filter((issue) => !['Resolved', 'Community Verified', 'Closed', 'Duplicate', 'Withdrawn'].includes(issue.status))
   const critical = issues.filter((issue) => issue.priority === 'Critical').length
   const high = issues.filter((issue) => issue.priority === 'High').length
   const unassigned = open.filter((issue) => !issue.officer || /unassigned|pending/i.test(issue.officer)).length

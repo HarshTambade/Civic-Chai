@@ -4,7 +4,7 @@
 // and in tests. Classification and filing are requested from the caller as actions.
 
 export type CallLanguage = 'en' | 'hi' | 'mr'
-export type CallStage = 'problem' | 'location' | 'pin' | 'duration' | 'proof' | 'confirm' | 'change' | 'filing' | 'failed' | 'done'
+export type CallStage = 'problem' | 'location' | 'pin' | 'duration' | 'proof' | 'confirm' | 'change' | 'filing' | 'failed' | 'filed' | 'done'
 
 export type CallSlots = {
   problem: string
@@ -15,6 +15,7 @@ export type CallSlots = {
   proof: boolean | null
   issue: string
   department: string
+  category: string
   /** Whether an authority team covers the PIN (undefined until checked). */
   covered?: boolean | null
 }
@@ -29,7 +30,7 @@ export type CallState = {
   misses: number
 }
 
-export type CallAction = 'classify' | 'file' | 'hangup'
+export type CallAction = 'classify' | 'file' | 'withdraw' | 'hangup'
 export type CallTurn = { state: CallState; say: string; action?: CallAction }
 
 const TEXT = {
@@ -49,20 +50,25 @@ const TEXT = {
     askChange: 'What should I change: the problem, the place, how long, or the proof?',
     changeUnknown: 'Sorry. Please say problem, place, how long, or proof.',
     filing: 'Filing your complaint now.',
-    filed: (id: string) => `Done! Your complaint is filed. Your report ID is ${id}. You can track it in My Charcha. Thank you for calling CivicChai. Goodbye!`,
+    filed: (id: string) => `Done! Your complaint is filed. Your report ID is ${id}. Once more: ${id}. You can track it in My Charcha. If you filed it by mistake, say "take it back" now. Otherwise, you can hang up.`,
+    takeBackHint: 'If you filed it by mistake, say "take it back". Otherwise, you can hang up.',
+    goodbye: 'Thank you for calling CivicChai. Goodbye!',
+    withdrawing: 'Okay, taking it back.',
+    withdrawn: (deleted: boolean) => `Done. Your complaint is ${deleted ? 'deleted' : 'withdrawn, and the authority will not act on it'}. Thank you for calling CivicChai. Goodbye!`,
+    withdrawFailed: (reason: string) => `Sorry, I could not take it back. ${reason} You can still do it from My Charcha. Goodbye!`,
     failed: (reason: string) => `Sorry, I could not file it. ${reason} Say yes to try again, or end the call.`,
     notHeard: "Sorry, I didn't catch that.",
     keypadHint: 'You can also use the keypad, or type your answer below.',
     yesNo: 'Please say yes or no.',
     notCovered: (pin: string) => `Note: no authority team covers PIN ${pin} on CivicChai yet, so your report may wait for one.`,
-    summary: (s: CallSlots, pin: string) => `${s.issue || 'A civic issue'} at ${s.locality}, PIN ${pin}. You said: ${trimEnd(s.problem)}. How long: ${s.duration ? trimEnd(s.duration) : 'not known'}. Proof: ${s.proof ? 'available' : 'not available'}.`,
+    summary: (s: CallSlots, pin: string, issue: string) => `${issue} at ${s.locality}, PIN ${pin}. You said: ${trimEnd(s.problem)}. How long: ${s.duration ? trimEnd(s.duration) : 'not known'}. Proof: ${s.proof ? 'available' : 'not available'}.`,
   },
   hi: {
     saved: 'आप ऑफ़लाइन हैं, इसलिए आपकी शिकायत इसी डिवाइस पर सहेज ली गई है। इंटरनेट आते ही यह भेज दी जाएगी। CivicChai को कॉल करने के लिए धन्यवाद। नमस्ते!',
-    greet: 'नमस्ते, आप CivicChai शिकायत लाइन पर हैं। मैं एक AI सहायक हूँ। आपकी आवाज़ आपके ब्राउज़र में ही टेक्स्ट बनती है, कोई रिकॉर्डिंग नहीं रखी जाती। आपकी शिकायत किस बारे में है?',
+    greet: 'नमस्ते, आप CivicChai शिकायत लाइन पर हैं। मैं एक AI सहायिका हूँ। आपकी आवाज़ आपके ब्राउज़र में ही टेक्स्ट बनती है, कोई रिकॉर्डिंग नहीं रखी जाती। आपकी शिकायत किस बारे में है?',
     problemShort: 'थोड़ा और बताइए, क्या ख़राब है और कहाँ?',
     retellProblem: 'ठीक है, समस्या फिर से बताइए।',
-    ack: (issue: string, department: string) => `ठीक है, समझ में आया। यह ${issue} लगता है। इसे ${department} को भेजा जाएगा।`,
+    ack: (issue: string, department: string) => `ठीक है, समझ गई। इसे ${issue} के रूप में दर्ज किया जाएगा और ${department} को भेजा जाएगा।`,
     askDetected: (locality: string, pin: string) => `आपका फ़ोन बता रहा है कि आप ${locality}, पिन ${pin} के पास हैं। क्या समस्या यहीं है? हाँ कहिए, या सही जगह बताइए।`,
     askLocation: 'समस्या कहाँ है? इलाक़े का नाम या पास की कोई पहचान बताइए।',
     askPin: 'और छह अंकों का पिन कोड? बोलिए, या कीपैड पर दबाइए।',
@@ -73,20 +79,25 @@ const TEXT = {
     askChange: 'क्या बदलना है: समस्या, जगह, कब से, या सबूत?',
     changeUnknown: 'माफ़ कीजिए। समस्या, जगह, कब से, या सबूत कहिए।',
     filing: 'आपकी शिकायत दर्ज की जा रही है।',
-    filed: (id: string) => `हो गया! आपकी शिकायत दर्ज हो गई है। आपकी रिपोर्ट आईडी है ${id}। आप इसे My Charcha में देख सकते हैं। CivicChai को कॉल करने के लिए धन्यवाद। नमस्ते!`,
+    filed: (id: string) => `हो गया! आपकी शिकायत दर्ज हो गई है। आपकी रिपोर्ट आईडी है ${id}। फिर से: ${id}। आप इसे My Charcha में देख सकते हैं। अगर ग़लती से दर्ज हुई है, तो अभी "वापस लो" कहिए। नहीं तो आप कॉल काट सकते हैं।`,
+    takeBackHint: 'अगर ग़लती से दर्ज हुई है, तो "वापस लो" कहिए। नहीं तो आप कॉल काट सकते हैं।',
+    goodbye: 'CivicChai को कॉल करने के लिए धन्यवाद। नमस्ते!',
+    withdrawing: 'ठीक है, शिकायत वापस ली जा रही है।',
+    withdrawn: (deleted: boolean) => `हो गया। ${deleted ? 'आपकी शिकायत हटा दी गई है।' : 'आपकी शिकायत वापस ले ली गई है, अब इस पर कार्रवाई नहीं होगी।'} CivicChai को कॉल करने के लिए धन्यवाद। नमस्ते!`,
+    withdrawFailed: (reason: string) => `माफ़ कीजिए, शिकायत वापस नहीं ली जा सकी। ${reason} आप यह My Charcha से कर सकते हैं। नमस्ते!`,
     failed: (reason: string) => `माफ़ कीजिए, शिकायत दर्ज नहीं हो पाई। ${reason} फिर से कोशिश के लिए हाँ कहिए, या कॉल काट दीजिए।`,
     notHeard: 'माफ़ कीजिए, सुनाई नहीं दिया।',
     keypadHint: 'आप कीपैड से, या नीचे टाइप करके भी जवाब दे सकते हैं।',
     yesNo: 'कृपया हाँ या ना कहिए।',
     notCovered: (pin: string) => `ध्यान दें, पिन ${pin} के लिए अभी CivicChai पर कोई अधिकारी टीम नहीं है, इसलिए रिपोर्ट को इंतज़ार करना पड़ सकता है।`,
-    summary: (s: CallSlots, pin: string) => `${s.locality}, पिन ${pin} में ${s.issue || 'नागरिक समस्या'}। आपने कहा: ${trimEnd(s.problem)}। कब से: ${s.duration ? trimEnd(s.duration) : 'पता नहीं'}। सबूत: ${s.proof ? 'है' : 'नहीं है'}।`,
+    summary: (s: CallSlots, pin: string, issue: string) => `${s.locality}, पिन ${pin} में ${issue}। आपने कहा: ${trimEnd(s.problem)}। कब से: ${s.duration ? trimEnd(s.duration) : 'पता नहीं'}। सबूत: ${s.proof ? 'है' : 'नहीं है'}।`,
   },
   mr: {
     saved: 'तुम्ही ऑफलाइन आहात, म्हणून तुमची तक्रार याच डिव्हाइसवर जतन केली आहे. इंटरनेट मिळताच ती पाठवली जाईल. CivicChai ला कॉल केल्याबद्दल धन्यवाद. नमस्कार!',
-    greet: 'नमस्कार, तुम्ही CivicChai तक्रार लाईनवर आहात. मी एक AI सहाय्यक आहे. तुमचा आवाज तुमच्या ब्राउझरमध्येच मजकुरात बदलतो, कोणतेही रेकॉर्डिंग ठेवले जात नाही. तुमची तक्रार कशाबद्दल आहे?',
+    greet: 'नमस्कार, तुम्ही CivicChai तक्रार लाईनवर आहात. मी एक AI सहाय्यिका आहे. तुमचा आवाज तुमच्या ब्राउझरमध्येच मजकुरात बदलतो, कोणतेही रेकॉर्डिंग ठेवले जात नाही. तुमची तक्रार कशाबद्दल आहे?',
     problemShort: 'थोडं अजून सांगा, काय बिघडलं आहे आणि कुठे?',
     retellProblem: 'ठीक आहे, समस्या पुन्हा सांगा.',
-    ack: (issue: string, department: string) => `ठीक आहे, समजलं. हे ${issue} वाटतं. हे ${department} कडे पाठवलं जाईल.`,
+    ack: (issue: string, department: string) => `ठीक आहे, समजलं. हे ${issue} म्हणून नोंदवलं जाईल आणि ${department}कडे पाठवलं जाईल.`,
     askDetected: (locality: string, pin: string) => `तुमचा फोन दाखवतो की तुम्ही ${locality}, पिन ${pin} जवळ आहात. समस्या इथेच आहे का? हो म्हणा, किंवा योग्य ठिकाण सांगा.`,
     askLocation: 'समस्या कुठे आहे? परिसराचं नाव किंवा जवळची खूण सांगा.',
     askPin: 'आणि सहा अंकी पिन कोड? बोला, किंवा कीपॅडवर दाबा.',
@@ -97,15 +108,40 @@ const TEXT = {
     askChange: 'काय बदलायचं आहे: समस्या, ठिकाण, किती दिवस, की पुरावा?',
     changeUnknown: 'माफ करा. समस्या, ठिकाण, किती दिवस, किंवा पुरावा म्हणा.',
     filing: 'तुमची तक्रार नोंदवली जात आहे.',
-    filed: (id: string) => `झालं! तुमची तक्रार नोंदवली गेली. तुमचा रिपोर्ट आयडी आहे ${id}. तुम्ही तो My Charcha मध्ये पाहू शकता. CivicChai ला कॉल केल्याबद्दल धन्यवाद. नमस्कार!`,
+    filed: (id: string) => `झालं! तुमची तक्रार नोंदवली गेली. तुमचा रिपोर्ट आयडी आहे ${id}. पुन्हा एकदा: ${id}. तुम्ही तो My Charcha मध्ये पाहू शकता. चुकून नोंदवली असेल, तर आता "मागे घ्या" म्हणा. नाहीतर कॉल बंद करू शकता.`,
+    takeBackHint: 'चुकून नोंदवली असेल, तर "मागे घ्या" म्हणा. नाहीतर कॉल बंद करू शकता.',
+    goodbye: 'CivicChai ला कॉल केल्याबद्दल धन्यवाद. नमस्कार!',
+    withdrawing: 'ठीक आहे, तक्रार मागे घेतली जात आहे.',
+    withdrawn: (deleted: boolean) => `झालं. ${deleted ? 'तुमची तक्रार काढून टाकली आहे.' : 'तुमची तक्रार मागे घेतली आहे, आता त्यावर कारवाई होणार नाही.'} CivicChai ला कॉल केल्याबद्दल धन्यवाद. नमस्कार!`,
+    withdrawFailed: (reason: string) => `माफ करा, तक्रार मागे घेता आली नाही. ${reason} तुम्ही हे My Charcha मधून करू शकता. नमस्कार!`,
     failed: (reason: string) => `माफ करा, तक्रार नोंदवता आली नाही. ${reason} पुन्हा प्रयत्न करण्यासाठी हो म्हणा, किंवा कॉल बंद करा.`,
     notHeard: 'माफ करा, ऐकू आलं नाही.',
     keypadHint: 'तुम्ही कीपॅड वापरून, किंवा खाली टाइप करूनही उत्तर देऊ शकता.',
     yesNo: 'कृपया हो किंवा नाही म्हणा.',
     notCovered: (pin: string) => `लक्षात घ्या, पिन ${pin} साठी अजून CivicChai वर कोणतीही अधिकारी टीम नाही, त्यामुळे रिपोर्टला थांबावं लागू शकतं.`,
-    summary: (s: CallSlots, pin: string) => `${s.locality}, पिन ${pin} येथे ${s.issue || 'नागरी समस्या'}. तुम्ही सांगितलं: ${trimEnd(s.problem)}. किती दिवसांपासून: ${s.duration ? trimEnd(s.duration) : 'माहीत नाही'}. पुरावा: ${s.proof ? 'आहे' : 'नाही'}.`,
+    summary: (s: CallSlots, pin: string, issue: string) => `${s.locality}, पिन ${pin} येथे ${issue}. तुम्ही सांगितलं: ${trimEnd(s.problem)}. किती दिवसांपासून: ${s.duration ? trimEnd(s.duration) : 'माहीत नाही'}. पुरावा: ${s.proof ? 'आहे' : 'नाही'}.`,
   },
 } satisfies Record<CallLanguage, unknown>
+
+// How the agent says each category's issue and department in Hindi and Marathi.
+const SPOKEN_CATEGORY: Record<string, { hi: [string, string]; mr: [string, string] }> = {
+  'Public Lighting': { hi: ['स्ट्रीटलाइट बंद होने की शिकायत', 'नगर पालिका के स्ट्रीटलाइट विभाग'], mr: ['पथदिवे बंद असल्याची तक्रार', 'महापालिकेच्या पथदिवे विभागा'] },
+  Sanitation: { hi: ['कचरा जमा होने की शिकायत', 'ठोस कचरा प्रबंधन विभाग'], mr: ['कचरा साचल्याची तक्रार', 'घनकचरा व्यवस्थापन विभागा'] },
+  'Roads & Potholes': { hi: ['सड़क ख़राब या गड्ढे की शिकायत', 'लोक निर्माण विभाग की सड़क शाखा'], mr: ['रस्ता खराब किंवा खड्ड्याची तक्रार', 'सार्वजनिक बांधकाम विभागाच्या रस्ते शाखे'] },
+  'Water Supply': { hi: ['पानी की सप्लाई की शिकायत', 'जल विभाग'], mr: ['पाणीपुरवठ्याची तक्रार', 'पाणीपुरवठा विभागा'] },
+  Drainage: { hi: ['नाली या सीवर की शिकायत', 'नाली और सीवरेज विभाग'], mr: ['गटार किंवा सांडपाण्याची तक्रार', 'गटार व मलनिस्सारण विभागा'] },
+  Traffic: { hi: ['ट्रैफ़िक या सड़क सुरक्षा की शिकायत', 'ट्रैफ़िक पुलिस और लोक निर्माण विभाग'], mr: ['वाहतूक किंवा रस्ता सुरक्षेची तक्रार', 'वाहतूक पोलीस व सार्वजनिक बांधकाम विभागा'] },
+  'Public Health': { hi: ['जन स्वास्थ्य से जुड़ी शिकायत', 'जन स्वास्थ्य कार्यालय'], mr: ['सार्वजनिक आरोग्याची तक्रार', 'सार्वजनिक आरोग्य कार्यालया'] },
+  'General civic issue': { hi: ['नागरिक सेवा की शिकायत', 'नगर पालिका संचालन विभाग'], mr: ['नागरी सेवेची तक्रार', 'महापालिका कामकाज विभागा'] },
+}
+
+/** The issue and department as the agent says them in the caller's language. */
+export function spokenCategory(state: CallState) {
+  const { issue, department, category } = state.slots
+  const local = state.language === 'en' ? undefined : SPOKEN_CATEGORY[category]?.[state.language]
+  if (local) return { issue: local[0], department: local[1] }
+  return { issue: issue || (state.language === 'en' ? 'A civic issue' : state.language === 'hi' ? 'नागरिक शिकायत' : 'नागरी तक्रार'), department }
+}
 
 function trimEnd(text: string) {
   return text.trim().replace(/[.!?।\s]+$/u, '')
@@ -186,6 +222,8 @@ function bare(word: string) {
   return word.toLowerCase().replace(/^[\s,.!?;:'"()।-]+|[\s,.!?;:'"()।-]+$/gu, '')
 }
 
+const TAKE_BACK = /take (?:it )?back|cancel|withdraw|delete|remove|undo|mistake|वापस|रद्द|हटा|डिलीट|कैंसल|मागे|काढून|चुकून/iu
+
 /** Locality spoken in a location reply: the words left once yes/no, the PIN and fillers are removed. */
 function localityFrom(text: string) {
   const kept = text.replace(/[०-९]/g, (d) => String('०१२३४५६७८९'.indexOf(d))).split(/\s+/).filter((word) => {
@@ -212,7 +250,7 @@ function t(state: CallState) {
 }
 
 export function summaryLine(state: CallState) {
-  return t(state).summary(state.slots, spokenPin(state.slots.pin))
+  return t(state).summary(state.slots, spokenPin(state.slots.pin), spokenCategory(state).issue)
 }
 
 /** The question for the current stage, used to re-prompt after silence. */
@@ -227,6 +265,7 @@ export function currentQuestion(state: CallState) {
     case 'confirm': return confirmPrompt(state)
     case 'change': return text.askChange
     case 'failed': return text.yesNo
+    case 'filed': return text.takeBackHint
     default: return ''
   }
 }
@@ -239,7 +278,7 @@ function confirmPrompt(state: CallState) {
 // ---- The conversation ---------------------------------------------------------------
 
 function emptySlots(): CallSlots {
-  return { problem: '', pin: '', locality: '', duration: null, proof: null, issue: '', department: '' }
+  return { problem: '', pin: '', locality: '', duration: null, proof: null, issue: '', department: '', category: '' }
 }
 
 export function startCall(language: CallLanguage, detected: CallState['detected'] = null): CallTurn {
@@ -344,6 +383,10 @@ export function handleReply(state: CallState, input: string): CallTurn {
       if (answer === 'no') return { state: { ...state, stage: 'done' }, say: '', action: 'hangup' }
       return retry(state, copy.yesNo)
     }
+    case 'filed':
+      // After filing, the caller can still take the complaint back; anything else ends the call.
+      if (TAKE_BACK.test(text)) return { state: { ...state, stage: 'done', misses: 0 }, say: copy.withdrawing, action: 'withdraw' }
+      return { state: { ...state, stage: 'done' }, say: copy.goodbye, action: 'hangup' }
     default:
       return { state, say: '' }
   }
@@ -381,13 +424,15 @@ export function handleDigits(state: CallState, digits: string): CallTurn {
 }
 
 export function handleSilence(state: CallState): CallTurn {
+  if (state.stage === 'filed') return { state: { ...state, stage: 'done' }, say: t(state).goodbye, action: 'hangup' }
   return retry(state, `${t(state).notHeard} ${currentQuestion(state)}`)
 }
 
 /** Continues after the complaint text was classified. */
-export function afterClassify(state: CallState, analysis: { issue: string; department: string }): CallTurn {
-  const next = withSlots(state, { issue: analysis.issue, department: analysis.department })
-  return advance(next, t(state).ack(analysis.issue, analysis.department))
+export function afterClassify(state: CallState, analysis: { issue: string; department: string; category?: string }): CallTurn {
+  const next = withSlots(state, { issue: analysis.issue, department: analysis.department, category: analysis.category ?? '' })
+  const spoken = spokenCategory(next)
+  return advance(next, t(state).ack(spoken.issue, spoken.department))
 }
 
 /** Records whether an authority covers the PIN; refreshes the read-back if it is pending. */
@@ -395,8 +440,17 @@ export function withCoverage(state: CallState, pin: string, covered: boolean | n
   return state.slots.pin === pin ? withSlots(state, { covered }) : state
 }
 
+/** Reads the report ID back twice, then gives the caller a moment to take it back. */
 export function afterFiled(state: CallState, documentId: string): CallTurn {
-  return { state: { ...state, stage: 'done' }, say: t(state).filed(spellId(documentId)), action: 'hangup' }
+  return { state: { ...state, stage: 'filed', misses: 0 }, say: t(state).filed(spellId(documentId)) }
+}
+
+export function afterWithdrawn(state: CallState, outcome: 'deleted' | 'withdrawn'): CallTurn {
+  return { state: { ...state, stage: 'done' }, say: t(state).withdrawn(outcome === 'deleted'), action: 'hangup' }
+}
+
+export function afterWithdrawFailed(state: CallState, reason: string): CallTurn {
+  return { state: { ...state, stage: 'done' }, say: t(state).withdrawFailed(reason), action: 'hangup' }
 }
 
 /** Offline: the complaint was kept as an on-device draft, so the call closes. */

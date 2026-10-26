@@ -35,7 +35,8 @@ function hoursToStage(issues: IssueRecord[], firstReached: Map<string, Map<strin
 }
 
 export function buildAnalytics(issues: IssueRecord[], events: StatusEvent[], supports: SupportEvent[], now = Date.now()) {
-  const live = issues.filter((issue) => !issue.isDemo)
+  // Complaints their reporter withdrew are not part of the civic workload.
+  const live = issues.filter((issue) => !issue.isDemo && issue.status !== 'Withdrawn')
   const firstReached = new Map<string, Map<string, number>>()
   for (const event of events) {
     const at = Date.parse(event.created_at)

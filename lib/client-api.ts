@@ -61,3 +61,15 @@ export async function submitIssuePayload(payload: CreateIssueInput): Promise<Iss
   if (!response.ok) throw new Error(result.error ?? 'Unable to submit complaint.')
   return result as IssueRecord
 }
+
+/** Takes back the signed-in reporter's own complaint (deleted if untouched, otherwise withdrawn). */
+export async function withdrawIssueRequest(id: string, reason = ''): Promise<{ outcome: 'deleted' | 'withdrawn'; documentId: string; message: string }> {
+  const response = await civicFetch(`/api/issues/${encodeURIComponent(id)}/withdraw`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reason }),
+  })
+  const result = await response.json().catch(() => ({}))
+  if (!response.ok) throw new Error(result.error ?? 'The complaint could not be withdrawn.')
+  return result
+}

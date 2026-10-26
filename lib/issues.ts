@@ -108,11 +108,11 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
   }
 }
 
-const PUBLIC_COLUMNS = 'id,document_id,title,description,normalized_text,category,department,pin,locality,state,district,municipality,ward,status,priority,priority_score,priority_factors,trust_factors,ai_confidence,language,source_channel,model_version,trust,chai_heat,supporters,reports,comments,days_unresolved,officer,hub,sla_due_at,is_demo,duplicate_of,duplicate_decision,has_evidence,created_at,updated_at'
+const PUBLIC_COLUMNS = 'id,document_id,title,description,normalized_text,category,department,pin,locality,state,district,municipality,ward,status,priority,priority_score,priority_factors,trust_factors,ai_confidence,language,source_channel,model_version,trust,chai_heat,supporters,reports,comments,days_unresolved,officer,hub,sla_due_at,is_demo,duplicate_of,duplicate_decision,has_evidence,is_public,created_at,updated_at'
 
 export async function getIssues(client = getSupabaseClient(), includeRestricted = false): Promise<IssueRecord[]> {
   if (!client) {
-    return [...getFallbackIssueStore()].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    return [...getFallbackIssueStore()].filter((issue) => includeRestricted || issue.isPublic !== false).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
   }
   const rows: IssueRecord[] = []
   const pageSize = 500
@@ -122,7 +122,8 @@ export async function getIssues(client = getSupabaseClient(), includeRestricted 
     rows.push(...(data ?? []).map(normalizeIssue))
     if (!data || data.length < pageSize) break
   }
-  return rows
+  // Row security lets a reporter read their own withdrawn complaint; public lists still leave it out.
+  return includeRestricted ? rows : rows.filter((issue) => issue.isPublic !== false)
 }
 
 export async function getIssueById(id: string, client = getSupabaseClient(), includeRestricted = false): Promise<IssueRecord | null> {
@@ -438,4 +439,47 @@ export async function getIssueComments(id: string, client = getSupabaseClient())
   const { data, error } = await client.from('issue_comments').select('id, issue_id, body, created_at').eq('issue_id', issue.id).order('created_at', { ascending: false }).limit(100)
   if (error) return []
   return (data ?? []).map((row: any) => ({ ...row, display_name: 'Community member' }))
+}
+
+export type WithdrawOutcome = 'deleted' | 'withdrawn'
+
+/** Raised when the rules refuse a withdrawal; the message is safe to show the reporter. */
+export class WithdrawRefused extends Error {}
+
+const WITHDRAW_REFUSALS = /only the person who filed|can no longer be withdrawn|other neighbours have joined/i
+const FINAL_STATUSES: IssueStatus[] = ['Resolved', 'Community Verified', 'Closed', 'Duplicate', 'Withdrawn']
+
+/**
+ * Lets the reporter take back their own complaint (migration 008 `withdraw_issue`).
+ * Untouched complaints are deleted; ones already routed or worked on become Withdrawn.
+ * Connected deployments must pass the server-only service client.
+ */
+export async function withdrawIssue(id: string, actorId: string, reason = '', client = getSupabaseClient()): Promise<{ outcome: WithdrawOutcome; documentId: string } | null> {
+  const current = await getIssueById(id, client, true)
+  if (!current) return null
+  const cleanReason = reason.trim().slice(0, 300)
+  if (client) {
+    const { data, error } = await client.rpc('withdraw_issue', { p_issue_id: current.id, p_actor_id: actorId, p_reason: cleanReason || null })
+    if (error) {
+      if (WITHDRAW_REFUSALS.test(error.message)) throw new WithdrawRefused(error.message)
+      throw error
+    }
+    return { outcome: data === 'deleted' ? 'deleted' : 'withdrawn', documentId: current.documentId }
+  }
+  if (current.createdBy !== actorId) throw new WithdrawRefused('Only the person who filed this complaint can withdraw it')
+  if (FINAL_STATUSES.includes(current.status)) throw new WithdrawRefused(`This complaint is already ${current.status.toLowerCase()}, so it can no longer be withdrawn`)
+  const othersJoined = [...getFallbackCorroborationStore()].some((key) => key.endsWith(`:${current.id}`) && !key.startsWith(`${actorId}:`))
+  if (othersJoined || current.reports > 1) throw new WithdrawRefused('Other neighbours have joined this complaint, so it stays open for them')
+  const store = getFallbackIssueStore()
+  if (['Filed', 'AI Classified'].includes(current.status) && !current.supporters && !current.comments) {
+    store.splice(store.indexOf(current), 1)
+    recordFallbackAudit('issue.deleted_by_reporter', undefined, actorId, { issue_id: current.id, document_id: current.documentId, reason: cleanReason || null })
+    return { outcome: 'deleted', documentId: current.documentId }
+  }
+  const before = current.status
+  current.status = 'Withdrawn'
+  current.isPublic = false
+  current.updatedAt = current.updated_at = new Date().toISOString()
+  recordFallbackAudit('issue.withdrawn_by_reporter', current.id, actorId, { from: before, reason: cleanReason || null })
+  return { outcome: 'withdrawn', documentId: current.documentId }
 }

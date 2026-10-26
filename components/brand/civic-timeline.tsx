@@ -30,6 +30,7 @@ export function CivicTimeline({
   return (
     <div className={className}>
     {status === 'Under Review' && <p className="mb-3 rounded-lg bg-terracotta/10 px-3 py-2 text-xs text-terracotta">Under review by the responsible office before assignment.</p>}
+    {status === 'Withdrawn' && <p className="mb-3 rounded-lg bg-muted px-3 py-2 text-xs text-charcoal/70">You withdrew this complaint. It is no longer public and the authority will not act on it; its history is kept for the audit trail.</p>}
     {status === 'Duplicate' && <p className="mb-3 rounded-lg bg-gold/15 px-3 py-2 text-xs text-chai">Linked to an existing issue as a duplicate. Progress is tracked on that issue.</p>}
     <ol className="space-y-0">
       {TIMELINE_STEPS.map((step, i) => {

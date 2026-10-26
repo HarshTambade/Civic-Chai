@@ -9,6 +9,7 @@ export type IssueStatus =
   | 'Closed'
   | 'Duplicate'
   | 'Under Review'
+  | 'Withdrawn'
 
 export type IssuePriority = 'Critical' | 'High' | 'Moderate' | 'Low'
 

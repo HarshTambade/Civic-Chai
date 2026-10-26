@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { afterClassify, afterFiled, extractDuration, extractPin, handleDigits, handleReply, handleSilence, parseYesNo, spellId, startCall, withCoverage } from '@/lib/voice-call'
+import { afterClassify, afterFiled, afterWithdrawn, extractDuration, extractPin, handleDigits, handleReply, handleSilence, parseYesNo, spellId, startCall, withCoverage } from '@/lib/voice-call'
 
 test('PINs are understood from digits, spaced digits, words and Devanagari', () => {
   assert.equal(extractPin('it is 401208'), '401208')
@@ -54,8 +54,30 @@ test('a full call fills every slot, reads back, and files only after yes', () =>
   assert.equal(turn.action, 'file')
 
   turn = afterFiled(turn.state, 'CC-401209-2026-5FE49A6D')
-  assert.equal(turn.action, 'hangup')
+  assert.equal(turn.state.stage, 'filed')
   assert.match(turn.say, /C C, 4 0 1 2 0 9, 2 0 2 6, 5 F E 4 9 A 6 D/)
+  assert.match(turn.say, /take it back/)
+
+  // Anything other than a take-back request ends the call politely.
+  const bye = handleReply(turn.state, 'no thanks')
+  assert.equal(bye.action, 'hangup')
+  assert.equal(handleSilence(turn.state).action, 'hangup')
+})
+
+test('the caller can take the complaint back by voice right after filing', () => {
+  let turn = startCall('mr', { pin: '401208', locality: 'वसई' })
+  turn = afterClassify(handleReply(turn.state, 'रस्त्यावर मोठा खड्डा आहे').state, { issue: 'Road damage or pothole', department: 'PWD — Roads Division', category: 'Roads & Potholes' })
+  assert.match(turn.say, /खड्ड्याची तक्रार/, 'the category is spoken in Marathi')
+  assert.match(turn.say, /रस्ते शाखेकडे/)
+  turn = afterFiled({ ...turn.state, stage: 'filing' }, 'CC-401208-2026-ABCD1234')
+  turn = handleReply(turn.state, 'मागे घ्या')
+  assert.equal(turn.action, 'withdraw')
+  assert.match(afterWithdrawn(turn.state, 'deleted').say, /काढून टाकली/)
+  assert.equal(afterWithdrawn(turn.state, 'withdrawn').action, 'hangup')
+
+  const hindi = afterFiled(startCall('hi').state, 'CC-1')
+  assert.equal(handleReply(hindi.state, 'हाँ, वापस लो').action, 'withdraw')
+  assert.match(startCall('hi').say, /सहायिका/, 'the Hindi agent speaks in the feminine')
 })
 
 test('without device location the agent asks for the area, then the PIN', () => {

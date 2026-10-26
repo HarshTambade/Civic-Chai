@@ -86,14 +86,43 @@ export function joinTranscript(before: string, spoken: string) {
 // Chrome drops callbacks for utterances that were garbage-collected mid-speech, so keep them.
 const speaking = new Set<SpeechSynthesisUtterance>()
 
-function pickVoice(lang: string) {
-  const voices = window.speechSynthesis.getVoices()
-  const base = lang.slice(0, 2)
-  const matches = (voice: SpeechSynthesisVoice, prefix: string) => voice.lang.replace('_', '-').toLowerCase().startsWith(prefix.toLowerCase())
-  return voices.find((voice) => matches(voice, lang))
-    ?? voices.find((voice) => matches(voice, base))
+// Voice names that are known to be female or male across Chrome, Edge, Safari/macOS,
+// Windows and Android. Unknown voices rank between the two.
+const FEMALE_VOICE = /female|woman|lekha|kalpana|swara|aarohi|neerja|veena|heera|ananya|aditi|raveena|priya|kajal|isha|shruti|sapna|pallavi|google हिन्दी|google hindi|samantha|karen|moira|tessa|fiona|victoria|zira|aria|jenny|sonia|libby|natasha|serena|kate|susan|allison|ava\b|nicky|zoe/i
+const MALE_VOICE = /\bmale\b|rishi|hemant|prabhat|madhur|manohar|ravi\b|daniel|alex\b|fred\b|aaron|arthur|david|mark\b|guy\b|ryan|thomas|oliver|george|prakash|kunal|aarav|valluvar/i
+
+export type VoiceChoice = { voice: SpeechSynthesisVoice | undefined; female: boolean | null; languageMatch: boolean }
+
+/** The best device voice for a language, preferring a female voice. */
+export function voiceFor(lang: string): VoiceChoice {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return { voice: undefined, female: null, languageMatch: false }
+  const base = lang.slice(0, 2).toLowerCase()
+  let best: { voice: SpeechSynthesisVoice; score: number } | undefined
+  for (const voice of window.speechSynthesis.getVoices()) {
+    const tag = voice.lang.replace('_', '-').toLowerCase()
     // Few devices ship a Marathi voice; a Hindi voice reads the same Devanagari script.
-    ?? (base === 'mr' ? voices.find((voice) => matches(voice, 'hi')) : undefined)
+    const language = tag === lang.toLowerCase() ? 6 : tag.startsWith(base) ? 5 : base === 'mr' && tag.startsWith('hi') ? 3 : 0
+    if (!language) continue
+    const gender = FEMALE_VOICE.test(voice.name) ? 3 : MALE_VOICE.test(voice.name) ? -3 : 0
+    const score = language + gender + (/google|natural|online|enhanced|premium/i.test(voice.name) ? 0.5 : 0)
+    if (!best || score > best.score) best = { voice, score }
+  }
+  if (!best) return { voice: undefined, female: null, languageMatch: false }
+  return { voice: best.voice, female: FEMALE_VOICE.test(best.voice.name) ? true : MALE_VOICE.test(best.voice.name) ? false : null, languageMatch: true }
+}
+
+/** Resolves once the device voice list is available (some browsers load it after a delay). */
+export function waitForVoices(timeoutMs = 1500) {
+  return new Promise<void>((resolve) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window) || window.speechSynthesis.getVoices().length) { resolve(); return }
+    const timer = setTimeout(finish, timeoutMs)
+    function finish() {
+      clearTimeout(timer)
+      window.speechSynthesis.removeEventListener('voiceschanged', finish)
+      resolve()
+    }
+    window.speechSynthesis.addEventListener('voiceschanged', finish)
+  })
 }
 
 /** Loads the device voices early; some browsers only list them after a first request. */
@@ -102,7 +131,7 @@ export function warmUpVoices() {
 }
 
 /**
- * Speaks text sentence by sentence (Chrome cuts off long single utterances) and resolves
+ * Speaks text in a female voice, sentence by sentence (Chrome cuts off long single utterances), and resolves
  * when it has finished or was cancelled. Without speech synthesis it waits roughly as long
  * as reading the caption takes.
  */
@@ -110,7 +139,7 @@ export function speakText(text: string, lang: string) {
   return new Promise<void>((resolve) => {
     if (typeof window === 'undefined' || !('speechSynthesis' in window)) { setTimeout(resolve, Math.min(9000, 1200 + text.length * 45)); return }
     const parts = text.split(/(?<=[.!?।])\s+/u).filter(Boolean)
-    const voice = pickVoice(lang)
+    const { voice, female } = voiceFor(lang)
     let finished = false
     const timer = setTimeout(() => done(), 4000 + text.length * 110)
     function done() {
@@ -123,6 +152,8 @@ export function speakText(text: string, lang: string) {
       const utterance = new SpeechSynthesisUtterance(part)
       utterance.lang = voice?.lang ?? lang
       if (voice) utterance.voice = voice
+      // CivicChai's agent is a female voice; lift the pitch when only an unknown or male voice exists.
+      utterance.pitch = female === true ? 1 : female === null ? 1.1 : 1.25
       speaking.add(utterance)
       utterance.onend = () => { speaking.delete(utterance); if (index === parts.length - 1) done() }
       utterance.onerror = () => { speaking.delete(utterance); done() }
