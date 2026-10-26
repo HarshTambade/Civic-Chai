@@ -445,7 +445,7 @@ Do not commit `.env.local`, service-role keys, provider tokens, or real citizen 
 | `/control-room` | Role-specific authority dashboard |
 | `/login` | Sign-in and local demo role selection |
 | `/mfa` | Staff TOTP enrollment/challenge |
-| `/voice-agent` | Browser-assisted voice reporting |
+| `/voice-agent` | AI call agent: a simulated phone call that asks the SOP questions by voice (problem, place/PIN, duration, proof), reads the complaint back and files it on "yes". `?mode=form` opens the step-by-step voice form. Script: `lib/voice-call.ts`. |
 | `/offline` | Offline state and recovery guidance |
 | `/q/[token]` | Signed locality QR landing page; verified codes open a pre-filled report |
 | `/knowledge` | Verified hubs, officers, documents and service targets for a PIN |

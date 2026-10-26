@@ -179,6 +179,8 @@ export function StreeChat() {
   }
 
   if (STAFF_AND_AUTH_ROUTES.some((route) => pathname?.startsWith(route))) return null
+  // The call screen has its own controls where the bubble would sit.
+  if (pathname === '/voice-agent') return null
 
   return (
     <div className={`fixed right-4 z-50 flex flex-col items-end gap-2 print:hidden ${pathname === '/citizen' ? 'bottom-[calc(5.75rem+env(safe-area-inset-bottom))] md:bottom-4' : 'bottom-4'}`}>

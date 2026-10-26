@@ -25,7 +25,7 @@ export function SiteFooter() {
                 [t.nav.localChai, '/citizen'],
                 [t.nav.chaiTapri, '/chai-tapri'],
                 [t.nav.startCharcha, '/citizen?report=1'],
-                ['Voice reporting', '/voice-agent'],
+                ['Call the voice agent', '/voice-agent'],
               ]}
             />
             <FooterCol

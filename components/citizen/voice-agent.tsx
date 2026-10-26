@@ -170,7 +170,7 @@ export function VoiceAgent() {
         <div className="rounded-3xl border border-border bg-card p-5 shadow-sm sm:p-8">
           <p className="text-xs font-semibold uppercase tracking-[0.18em] text-terracotta">Voice-first filing · keypad fallback</p>
           <h1 className="mt-2 font-display text-3xl font-extrabold">Tell CivicChai what happened</h1>
-          <p className="mt-2 text-sm leading-relaxed text-charcoal/65">Speak or type your complaint, enter the PIN with the keypad, then listen to the summary and confirm it before filing.</p>
+          <p className="mt-2 text-sm leading-relaxed text-charcoal/65">Speak or type your complaint, enter the PIN with the keypad, then listen to the summary and confirm it before filing. Or <Link href="/voice-agent" className="font-semibold text-chai underline">call the voice agent</Link> and do it all by talking.</p>
 
           {isHydrated && !user && <p className="mt-4 rounded-lg border border-gold/40 bg-gold/10 p-3 text-sm text-charcoal/75"><Link href="/login?next=/voice-agent" className="font-semibold text-chai underline">Sign in</Link> first so you can track this report and confirm when it is fixed.</p>}
 

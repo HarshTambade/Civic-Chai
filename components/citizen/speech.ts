@@ -80,3 +80,57 @@ export function transcriptFromResults(results: RecognitionResults) {
 export function joinTranscript(before: string, spoken: string) {
   return [before.trim(), spoken.trim()].filter(Boolean).join(' ')
 }
+
+// ---- Speaking back (speech synthesis) -----------------------------------------------
+
+// Chrome drops callbacks for utterances that were garbage-collected mid-speech, so keep them.
+const speaking = new Set<SpeechSynthesisUtterance>()
+
+function pickVoice(lang: string) {
+  const voices = window.speechSynthesis.getVoices()
+  const base = lang.slice(0, 2)
+  const matches = (voice: SpeechSynthesisVoice, prefix: string) => voice.lang.replace('_', '-').toLowerCase().startsWith(prefix.toLowerCase())
+  return voices.find((voice) => matches(voice, lang))
+    ?? voices.find((voice) => matches(voice, base))
+    // Few devices ship a Marathi voice; a Hindi voice reads the same Devanagari script.
+    ?? (base === 'mr' ? voices.find((voice) => matches(voice, 'hi')) : undefined)
+}
+
+/** Loads the device voices early; some browsers only list them after a first request. */
+export function warmUpVoices() {
+  try { window.speechSynthesis?.getVoices() } catch { /* no speech synthesis */ }
+}
+
+/**
+ * Speaks text sentence by sentence (Chrome cuts off long single utterances) and resolves
+ * when it has finished or was cancelled. Without speech synthesis it waits roughly as long
+ * as reading the caption takes.
+ */
+export function speakText(text: string, lang: string) {
+  return new Promise<void>((resolve) => {
+    if (typeof window === 'undefined' || !('speechSynthesis' in window)) { setTimeout(resolve, Math.min(9000, 1200 + text.length * 45)); return }
+    const parts = text.split(/(?<=[.!?।])\s+/u).filter(Boolean)
+    const voice = pickVoice(lang)
+    let finished = false
+    const timer = setTimeout(() => done(), 4000 + text.length * 110)
+    function done() {
+      if (finished) return
+      finished = true
+      clearTimeout(timer)
+      resolve()
+    }
+    parts.forEach((part, index) => {
+      const utterance = new SpeechSynthesisUtterance(part)
+      utterance.lang = voice?.lang ?? lang
+      if (voice) utterance.voice = voice
+      speaking.add(utterance)
+      utterance.onend = () => { speaking.delete(utterance); if (index === parts.length - 1) done() }
+      utterance.onerror = () => { speaking.delete(utterance); done() }
+      window.speechSynthesis.speak(utterance)
+    })
+  })
+}
+
+export function stopSpeaking() {
+  try { window.speechSynthesis?.cancel() } catch { /* nothing is speaking */ }
+}

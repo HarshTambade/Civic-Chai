@@ -317,7 +317,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const ready = isHydrated && deployment !== null && qrArea.checked
   const gate = !ready ? null
     // Sign-in comes first so visitors always see how to get an account.
-    : !user ? <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-center"><p className="font-display text-lg font-bold text-charcoal">Sign in to report an issue</p><p className="text-sm text-charcoal/65">An account lets you track the report, receive status updates and confirm when it is fixed. Your name is never shown publicly.</p><Link href="/login?next=/citizen?report=1" className="inline-flex w-full justify-center rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream">Sign in or create an account</Link><Link href="/voice-agent" className="block text-xs font-semibold text-chai underline">No smartphone app? Use the voice-assisted form</Link></div>
+    : !user ? <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-center"><p className="font-display text-lg font-bold text-charcoal">Sign in to report an issue</p><p className="text-sm text-charcoal/65">An account lets you track the report, receive status updates and confirm when it is fixed. Your name is never shown publicly.</p><Link href="/login?next=/citizen?report=1" className="inline-flex w-full justify-center rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream">Sign in or create an account</Link><Link href="/voice-agent" className="block text-xs font-semibold text-chai underline">Prefer talking? Call the CivicChai voice agent</Link></div>
       : !deployment!.intake ? <p className="rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm leading-relaxed text-charcoal/75">Online issue intake is not enabled for this deployment yet. Please use your authority&apos;s official grievance or emergency channel.{isDemoModeEnabled() && <span className="mt-2 block text-xs text-charcoal/55">Testing note: an administrator enables filing by setting CIVICCHAI_PUBLIC_INTAKE_ENABLED=true in the deployment environment and redeploying.</span>}</p>
         : !canFile ? <p className="rounded-2xl border border-border bg-card p-4 text-sm text-charcoal/70">This account role cannot file civic reports. Use a citizen account, or a department account for assisted filing.</p>
           : null
@@ -421,7 +421,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
               <div className="grid grid-cols-2 gap-2">
                 {[
                   [Camera, deployment?.uploads ? 'Add Proof' : 'Proof later', () => deployment?.uploads ? fileInputRef.current?.click() : setSubmissionError('Photo and video uploads are not enabled for this deployment yet. Mention in your complaint that you have proof.'), false],
-                  [Phone, 'Voice form', () => { window.location.href = '/voice-agent' }, false],
+                  [Phone, 'Call agent', () => { window.location.href = '/voice-agent' }, false],
                 ].map(([Icon, label, onClick, disabled], i) => {
                   const I = Icon as React.ElementType
                   return (
