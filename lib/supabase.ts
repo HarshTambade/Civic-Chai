@@ -49,10 +49,13 @@ export function isLocalDemoModeEnabled() {
 /**
  * Demo mode is for testing with the seeded @civicchai.local accounts: it lists them on
  * /login and lets those demo staff accounts skip authenticator setup. Real staff accounts
- * always need MFA. Turn it off before a pilot accepts real reports.
+ * always need MFA. It is on by default; set NEXT_PUBLIC_CIVICCHAI_DEMO_MODE=false to turn
+ * it off before a pilot accepts real reports.
  */
 export function isDemoModeEnabled() {
-  return isLocalDemoModeEnabled() || process.env.NEXT_PUBLIC_CIVICCHAI_DEMO_MODE === 'true'
+  if (isLocalDemoModeEnabled()) return true
+  const setting = process.env.NEXT_PUBLIC_CIVICCHAI_DEMO_MODE?.trim().toLowerCase()
+  return !['false', '0', 'no', 'off'].includes(setting ?? '')
 }
 
 export function getSupabaseServiceClient() {

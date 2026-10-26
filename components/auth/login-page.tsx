@@ -104,7 +104,7 @@ export function LoginPage() {
               {creatingAccount
                 ? 'No real name needed. You get an anonymous public name (like KadakKulhad-3F9A); your email is never shown to other people.'
                 : supabaseConfigured
-                  ? 'Citizens sign in with email and password. Staff accounts also confirm a code from an authenticator app.'
+                  ? 'Citizens sign in with email and password. Authority staff use the account provisioned for them; the first sign-in asks you to scan a QR code with an authenticator app (Google Authenticator, Microsoft Authenticator or similar).'
                   : localDemoEnabled ? 'Local preview mode is active. Choose a demo role to sign in on this device.' : 'Authentication is unavailable. The production Supabase configuration is missing.'}
             </p>
             <form onSubmit={submit} className="mt-5 space-y-3">
@@ -112,7 +112,7 @@ export function LoginPage() {
               <input id="email" type="email" autoComplete="username" required value={email} onChange={(event) => setEmail(event.target.value)} className={inputClass} />
               <label className="block pt-1 text-xs font-semibold text-sidebar-foreground/70" htmlFor="password">Password</label>
               <input id="password" type="password" autoComplete={creatingAccount ? 'new-password' : 'current-password'} minLength={creatingAccount ? 8 : undefined} required value={password} onChange={(event) => setPassword(event.target.value)} className={inputClass} />
-              {creatingAccount && <p className="text-[11px] text-sidebar-foreground/45">At least 8 characters.</p>}
+              {creatingAccount && <p className="text-[11px] leading-relaxed text-sidebar-foreground/50">At least 8 characters. By creating an account you agree to the <Link href="/community-guidelines" className="underline">community guidelines</Link> and confirm you have read the <Link href="/privacy" className="underline">privacy notice</Link>.</p>}
               {error && <p role="alert" className="rounded-lg bg-heat/15 p-3 text-sm text-heat">{error}</p>}
               {notice && <p role="status" className="rounded-lg bg-leaf/10 p-3 text-sm text-leaf">{notice}</p>}
               <button disabled={isLoading || (!supabaseConfigured && !localDemoEnabled)} className="flex w-full items-center justify-center gap-2 rounded-lg bg-gold px-4 py-2.5 text-sm font-semibold text-charcoal disabled:opacity-60">

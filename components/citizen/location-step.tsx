@@ -15,7 +15,7 @@ const INDIA_CENTER: [number, number] = [20.5937, 78.9629]
  * location, let the citizen pan the map under a fixed pin, fill the PIN and locality
  * from the map, and allow both to be changed by hand before continuing.
  */
-export function LocationStep({ value, onChange, onConfirm }: { value: ReportLocation; onChange: (next: Partial<ReportLocation>) => void; onConfirm: () => void }) {
+export function LocationStep({ value, onChange, onConfirm, verifiedArea, autoDetect = true }: { value: ReportLocation; onChange: (next: Partial<ReportLocation>) => void; onConfirm: () => void; verifiedArea?: string; autoDetect?: boolean }) {
   const live = useLiveLocation()
   const pinInfo = usePincode(value.pin)
   const [center, setCenter] = useState<[number, number]>(value.coordinates ? [value.coordinates.lat, value.coordinates.lng] : INDIA_CENTER)
@@ -47,10 +47,10 @@ export function LocationStep({ value, onChange, onConfirm }: { value: ReportLoca
 
   // Detect the location as soon as the step opens, like a ride-hailing app.
   useEffect(() => {
-    if (started.current) return
+    if (started.current || !autoDetect) return
     started.current = true
     if (!value.coordinates) void detect()
-  }, [detect, value.coordinates])
+  }, [detect, value.coordinates, autoDetect])
 
   // A typed (or saved) PIN moves the map to that area while no exact point is set.
   useEffect(() => {
@@ -85,6 +85,7 @@ export function LocationStep({ value, onChange, onConfirm }: { value: ReportLoca
 
   return (
     <div className="space-y-4">
+      {verifiedArea && <p className="rounded-xl border border-leaf/30 bg-leaf/10 px-3 py-2 text-xs font-semibold text-leaf">Verified QR area: {verifiedArea}. Change it below if the problem is elsewhere.</p>}
       <div>
         <h3 className="font-display text-base font-extrabold text-charcoal">Where is the problem?</h3>
         <p className="text-xs text-charcoal/60">Move the map so the pin sits on the problem. You can also type the PIN and locality.</p>

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server'
 import { getRequestContext } from '@/lib/api-auth'
+import { PRIVACY_NOTICE_VERSION } from '@/lib/legal'
 
 const PROFILE_FIELDS = 'id,display_name,city,ward,locality,preferred_pin,preferred_language,notification_preferences,consent_preferences,privacy_notice_version,privacy_notice_at'
 
@@ -29,7 +30,7 @@ export async function PATCH(request: Request) {
       preferred_language: preferredLanguage,
       notification_preferences: body.notification_preferences && typeof body.notification_preferences === 'object' ? body.notification_preferences : {},
       consent_preferences: body.consent_preferences && typeof body.consent_preferences === 'object' ? body.consent_preferences : {},
-      privacy_notice_version: 'civicchai-privacy-2026-10',
+      privacy_notice_version: PRIVACY_NOTICE_VERSION,
       privacy_notice_at: new Date().toISOString(),
     }
     if (!client) return NextResponse.json({ profile: { id: actor.id, ...update } })

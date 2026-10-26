@@ -11,7 +11,7 @@ import { CivicTimeline } from '@/components/brand/civic-timeline'
 import { StatusBadge, PriorityBadge } from '@/components/brand/badges'
 import { civicFetch } from '@/lib/client-api'
 import type { IssueRecord } from '@/lib/types'
-import { ArrowLeft, ExternalLink, FileText, MapPin, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, ExternalLink, FileText, MapPin, Printer, ShieldCheck } from 'lucide-react'
 
 type RegistryData = {
   jurisdiction?: { name: string; level: string; source_url?: string; source_version?: string; verified_at?: string } | null
@@ -94,13 +94,13 @@ export default function IssueReportPage() {
     <main className="min-h-dvh bg-background text-charcoal">
       <SiteNav />
       <div className="mx-auto max-w-6xl px-4 py-7 sm:px-6 sm:py-10">
-        <Link href="/citizen" className="inline-flex items-center gap-2 text-sm font-semibold text-chai hover:underline"><ArrowLeft className="h-4 w-4" />Back to Local Chai</Link>
+        <div className="flex flex-wrap items-center justify-between gap-3 print:hidden"><Link href="/citizen" className="inline-flex items-center gap-2 text-sm font-semibold text-chai hover:underline"><ArrowLeft className="h-4 w-4" />Back to Local Chai</Link>{issue && <button type="button" onClick={() => window.print()} className="inline-flex items-center gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm font-semibold text-chai"><Printer className="h-4 w-4" />Print / Save as PDF</button>}</div>
         {loading && <div role="status" className="mt-6 rounded-2xl border border-border bg-card p-8 text-sm text-charcoal/60">Loading the public civic report…</div>}
         {!loading && error && <section className="mt-6 rounded-2xl border border-terracotta/30 bg-card p-8"><h1 className="font-display text-xl font-bold">Report unavailable</h1><p className="mt-2 text-sm text-charcoal/65">{error}</p></section>}
         {!loading && issue && <>
           <header className="mt-6 overflow-hidden rounded-3xl border border-border bg-card shadow-sm">
             <div className="bg-chai p-5 text-cream sm:p-8">
-              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cream/65">CivicChai public issue report</p>
+              <p className="text-xs font-semibold uppercase tracking-[0.18em] text-cream/65">CivicChai public issue report<span className="hidden print:inline"> · printed {new Date().toLocaleString('en-IN')} · {typeof window !== 'undefined' ? window.location.href : ''}</span></p>
               <div className="mt-3 flex flex-wrap items-start justify-between gap-4">
                 <div className="min-w-0 flex-1"><p className="font-mono text-xs text-cream/65">{issue.documentId}</p><h1 className="mt-2 font-display text-2xl font-extrabold sm:text-4xl">{issue.title}</h1><p className="mt-3 flex flex-wrap items-center gap-2 text-sm text-cream/75"><MapPin className="h-4 w-4" />PIN {issue.pin} · {issue.locality}{issue.isDemo ? ' · Synthetic demo record' : ''}</p></div>
                 <div className="flex flex-wrap gap-2"><StatusBadge status={issue.status} /><PriorityBadge priority={issue.priority} /></div>
@@ -135,7 +135,7 @@ export default function IssueReportPage() {
               </section>
               <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Tracking history</h2><div className="mt-4"><CivicTimeline status={issue.status} issueId={issue.id} /></div></section>
             </div>
-            <aside className="space-y-4"><ChaiCard issue={issue} /><EducationCard issue={issue} registry={registry} /></aside>
+            <aside className="space-y-4"><div className="print:hidden"><ChaiCard issue={issue} /></div><EducationCard issue={issue} registry={registry} /></aside>
           </div>
         </>}
       </div>

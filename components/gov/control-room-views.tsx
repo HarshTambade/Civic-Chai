@@ -11,6 +11,7 @@ import { canManageIssues, canManageRegistry, canModerate, ROLE_LABELS } from '@/
 import type { IssueRecord } from '@/lib/types'
 import type { AppRole } from '@/lib/roles'
 import type { HeatmapData, HeatmapMetric } from '@/lib/heatmap'
+import type { AnalyticsReport } from '@/lib/analytics'
 import { HeatmapCanvas } from '@/components/gov/heatmap-canvas'
 import { PriorityBadge, StatusBadge, TrustBadge } from '@/components/brand/badges'
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
@@ -659,66 +660,81 @@ export function GISView() {
 }
 
 /* ---------------- Analytics ---------------- */
+function formatHours(hours: number | null) {
+  if (hours == null) return 'Not enough data'
+  return hours < 48 ? `${hours} h` : `${Math.round((hours / 24) * 10) / 10} days`
+}
+
 export function AnalyticsView() {
-  const [issues, setIssues] = useState<IssueRecord[]>([])
+  const [report, setReport] = useState<AnalyticsReport | null>(null)
   const [message, setMessage] = useState('Loading analytics…')
   useEffect(() => {
     let cancelled = false
-    civicFetch('/api/issues').then((response) => response.ok ? response.json() : Promise.reject(new Error('Unable to load analytics.'))).then((payload) => {
-      if (!cancelled) { setIssues(Array.isArray(payload.issues) ? payload.issues : []); setMessage('') }
+    civicFetch('/api/analytics').then(async (response) => {
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error ?? 'Unable to load analytics.')
+      if (!cancelled) { setReport(payload); setMessage('') }
     }).catch((error) => { if (!cancelled) setMessage(error instanceof Error ? error.message : 'Unable to load analytics.') })
     return () => { cancelled = true }
   }, [])
-  const now = new Date()
-  const months = Array.from({ length: 12 }, (_, index) => new Date(now.getFullYear(), now.getMonth() - 11 + index, 1))
-  const trend = months.map((month) => ({
-    label: new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(month),
-    count: issues.filter((issue) => { const createdAt = new Date(issue.createdAt); return createdAt.getFullYear() === month.getFullYear() && createdAt.getMonth() === month.getMonth() }).length,
-  }))
-  const max = Math.max(1, ...trend.map((item) => item.count))
-  const resolved = issues.filter((issue) => ['Resolved', 'Community Verified', 'Closed'].includes(issue.status)).length
-  const unresolved = issues.filter((issue) => !['Resolved', 'Community Verified', 'Closed', 'Duplicate'].includes(issue.status))
-  const resolutionRate = issues.length ? Math.round((resolved / issues.length) * 100) : 0
-  const averageOpenAge = unresolved.length ? (unresolved.reduce((sum, issue) => sum + issue.daysUnresolved, 0) / unresolved.length).toFixed(1) : '0.0'
-  const configuredSla = issues.filter((issue) => issue.slaDueAt)
-  const metSla = configuredSla.filter((issue) => ['Resolved', 'Community Verified', 'Closed'].includes(issue.status) && new Date(issue.updatedAt ?? issue.createdAt).getTime() <= new Date(issue.slaDueAt!).getTime()).length
-  const slaRate = configuredSla.length ? `${Math.round((metSla / configuredSla.length) * 100)}% (${configuredSla.length} configured)` : 'No verified SLA data'
+  const max = Math.max(1, ...(report?.monthly ?? []).map((item) => item.count))
+  const monthLabel = (value: string) => new Intl.DateTimeFormat('en-IN', { month: 'short' }).format(new Date(`${value}-01T00:00:00`))
+  const kpis = report ? [
+    ['Median time to acknowledge', formatHours(report.kpis.medianHoursToAcknowledge)],
+    ['Median time to assign', formatHours(report.kpis.medianHoursToAssign)],
+    ['Median time to resolve', formatHours(report.kpis.medianHoursToResolve)],
+    ['Duplicate reduction', `${report.kpis.duplicateReductionPercent}% of reports consolidated`],
+    ['Evidence-backed issues', `${report.kpis.evidenceBackedPercent}%`],
+    ['Resolved issues verified or closed', `${report.kpis.communityVerifiedPercent}%`],
+  ] : []
   return (
     <div className="space-y-4">
-      <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
-        <h3 className="text-sm font-semibold text-sidebar-foreground">Issues filed by month (last 12 months)</h3>
-        {message && <p role="status" className="mt-3 text-xs text-sidebar-foreground/55">{message}</p>}
-        <div className="mt-6 flex h-48 items-end gap-2">
-          {trend.map((item) => (
-            <div key={`${item.label}-${item.count}`} className="flex flex-1 flex-col items-center gap-2">
-              <div
-                title={`${item.count} filed`}
-                className="w-full rounded-t bg-gold/80"
-                style={{ height: `${Math.max(item.count ? 4 : 0, (item.count / max) * 100)}%` }}
-              />
-              <span className="text-[10px] text-sidebar-foreground/50">{item.label}</span>
-            </div>
-          ))}
+      {message && <p role="status" className="rounded-lg border border-sidebar-border bg-sidebar-accent p-3 text-xs text-sidebar-foreground/60">{message}</p>}
+      {report && <>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {kpis.map(([label, value]) => <div key={label} className="rounded-lg border border-sidebar-border bg-sidebar-accent p-4"><p className="text-[10px] font-semibold uppercase tracking-wide text-sidebar-foreground/50">{label}</p><p className="mt-1 font-display text-xl font-extrabold text-sidebar-foreground">{value}</p></div>)}
         </div>
-      </div>
-      <div className="grid gap-4 sm:grid-cols-4">
-        {[
-          ['Issues in scope', issues.length.toLocaleString('en-IN')],
-          ['Resolved now', `${resolutionRate}%`],
-          ['Average open age', `${averageOpenAge} days`],
-          ['Verified SLA met', slaRate],
-        ].map(([k, v]) => (
-          <div
-            key={k}
-            className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5"
-          >
-            <p className="text-xs uppercase tracking-wide text-sidebar-foreground/50">{k}</p>
-            <p className="mt-1 font-display text-2xl font-extrabold text-sidebar-foreground">
-              {v}
-            </p>
+        <p className="text-[11px] text-sidebar-foreground/45">{report.totals.issues} canonical issues in your scope · {report.totals.open} open · {report.totals.resolved} resolved{report.totals.syntheticExcluded ? ` · ${report.totals.syntheticExcluded} synthetic demo records excluded` : ''}. Times are measured from filing to the first recorded status.</p>
+
+        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+          <h3 className="text-sm font-semibold text-sidebar-foreground">Issues filed by month (last 12 months)</h3>
+          <div className="mt-6 flex h-40 items-end gap-2">
+            {report.monthly.map((item) => (
+              <div key={item.month} className="flex flex-1 flex-col items-center gap-2">
+                <div title={`${item.count} filed`} className="w-full rounded-t bg-gold/80" style={{ height: `${Math.max(item.count ? 4 : 0, (item.count / max) * 100)}%` }} />
+                <span className="text-[10px] text-sidebar-foreground/50">{monthLabel(item.month)}</span>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
+        </div>
+
+        <div className="grid gap-4 xl:grid-cols-2">
+          <div className="overflow-x-auto rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+            <h3 className="text-sm font-semibold text-sidebar-foreground">Department load and resolution</h3>
+            <table className="mt-3 w-full text-left text-xs">
+              <thead className="text-sidebar-foreground/50"><tr><th className="py-1.5 font-medium">Department</th><th className="font-medium">Open</th><th className="font-medium">Resolved</th><th className="font-medium">Median to resolve</th></tr></thead>
+              <tbody className="divide-y divide-sidebar-border text-sidebar-foreground/80">{report.departments.map((row) => <tr key={row.department}><td className="py-2 pr-2">{row.department}</td><td>{row.open}</td><td>{row.resolved}</td><td>{formatHours(row.medianHoursToResolve)}</td></tr>)}</tbody>
+            </table>
+            {!report.departments.length && <p className="mt-2 text-xs text-sidebar-foreground/50">No issues in scope yet.</p>}
+          </div>
+          <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+            <h3 className="text-sm font-semibold text-sidebar-foreground">Intake channels</h3>
+            <ul className="mt-3 space-y-2 text-xs">{report.channels.map((row) => <li key={row.channel} className="flex justify-between text-sidebar-foreground/75"><span className="uppercase">{row.channel}</span><span className="font-semibold">{row.count}</span></li>)}</ul>
+            <h3 className="mt-5 text-sm font-semibold text-sidebar-foreground">Repeat issues (3+ in 90 days)</h3>
+            {report.repeatIssues.length ? <ul className="mt-2 space-y-1.5 text-xs">{report.repeatIssues.map((row) => <li key={`${row.pin}-${row.locality}-${row.category}`} className="text-sidebar-foreground/75">{row.category} · {row.locality} (PIN {row.pin}) · <b>{row.count}</b></li>)}</ul> : <p className="mt-2 text-xs text-sidebar-foreground/50">No repeating locality problems detected.</p>}
+          </div>
+        </div>
+
+        <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+          <h3 className="text-sm font-semibold text-sidebar-foreground">Trending Chai and integrity signals</h3>
+          <p className="mt-1 text-xs text-sidebar-foreground/50">Open issues ranked by support in the last 7 days. Flags are prompts for human review of possible vote manipulation; they never change scores or hide an issue.</p>
+          <div className="mt-3 space-y-2">{report.trending.map((row) => <article key={row.id} className="rounded-md border border-sidebar-border bg-sidebar p-3">
+            <div className="flex flex-wrap items-center justify-between gap-2"><p className="text-xs font-semibold text-sidebar-foreground">{row.title}</p><span className="text-xs font-bold text-heat">{row.chaiHeat}°</span></div>
+            <p className="mt-1 text-[10px] text-sidebar-foreground/50">{row.documentId} · {row.locality} · {row.supporters} supporters · {row.reports} reports · +{row.supportLast24h} in 24 h · +{row.supportLast7d} in 7 days</p>
+            {row.flags.map((flag) => <p key={flag} className="mt-1 inline-flex rounded bg-heat/15 px-2 py-0.5 text-[10px] font-semibold text-heat">{flag}</p>)}
+          </article>)}{!report.trending.length && <p className="text-xs text-sidebar-foreground/50">No open issues in scope.</p>}</div>
+        </div>
+      </>}
     </div>
   )
 }
@@ -781,6 +797,7 @@ export function RegistryView() {
 
   return (
     <div className="space-y-4">
+      <LocalityQrPanel defaultPin={user?.pin ?? ''} />
       <div className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
         <h3 className="text-sm font-semibold text-sidebar-foreground">Authority registry & official sources</h3>
         <p className="mt-2 text-xs leading-relaxed text-sidebar-foreground/55">Only source-backed records marked verified are presented as official. Verify the source and scope before publishing a contact or document.</p>
@@ -791,6 +808,58 @@ export function RegistryView() {
       </div>
       <form onSubmit={addRecord} className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5"><h3 className="text-sm font-semibold text-sidebar-foreground">Add a source-backed record</h3><div className="mt-4 grid gap-3 sm:grid-cols-2"><label className="text-xs text-sidebar-foreground/60">Record type<select value={kind} onChange={(event) => setKind(event.target.value as typeof kind)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground"><option value="jurisdiction">Jurisdiction</option><option value="hub">Public service hub</option><option value="officer">Public officer routing</option><option value="document">Official document</option><option value="sla">Service-level target (SLA)</option></select></label><label className="text-xs text-sidebar-foreground/60">Six-digit PIN<input required pattern="[0-9]{6}" value={form.pin} onChange={(event) => setForm({ ...form, pin: event.target.value })} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" /></label>{fields[kind].map(([name, label]) => <label key={name} className="text-xs text-sidebar-foreground/60">{label}{name === 'department' ? <select required={kind === 'officer'} value={form.department ?? ''} onChange={(event) => setForm({ ...form, department: event.target.value })} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground">{kind === 'sla' && <option value="">All departments</option>}{kind === 'officer' && <option value="">Choose a department</option>}{DEPARTMENT_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select> : name === 'level' ? <select required value={form.level} onChange={(event) => setForm({ ...form, level: event.target.value })} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground"><option value="state">State</option><option value="district">District</option><option value="municipality">Municipality</option><option value="ward">Ward</option><option value="pin">PIN</option><option value="locality">Locality</option></select> : <input required={['name', 'address', 'role', 'department', 'title', 'authority', 'target_hours'].includes(name)} type={name.endsWith('_at') ? 'date' : name === 'target_hours' ? 'number' : 'text'} min={name === 'target_hours' ? 1 : undefined} max={name === 'target_hours' ? 87600 : undefined} value={form[name] ?? ''} onChange={(event) => setForm({ ...form, [name]: event.target.value })} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" />}</label>)}<label className="text-xs text-sidebar-foreground/60 sm:col-span-2">Source URL (HTTPS)<input required type="url" value={form.source_url} onChange={(event) => setForm({ ...form, source_url: event.target.value })} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" /></label><label className="flex items-center gap-2 text-xs text-sidebar-foreground/70 sm:col-span-2"><input type="checkbox" checked={verified} onChange={(event) => setVerified(event.target.checked)} />I checked this source and authorize marking it verified.</label></div><button disabled={saving} className="mt-4 rounded-md bg-gold px-4 py-2 text-xs font-semibold text-charcoal disabled:opacity-50">{saving ? 'Saving…' : 'Add registry record'}</button></form>
     </div>
+  )
+}
+
+/** Signed locality QR codes for posters and hubs (SOP §3.1). Scanning opens a pre-filled report. */
+function LocalityQrPanel({ defaultPin }: { defaultPin: string }) {
+  const [pin, setPin] = useState(defaultPin)
+  const [locality, setLocality] = useState('')
+  const [ward, setWard] = useState('')
+  const [result, setResult] = useState<{ url: string; svg: string; area: { pin: string; locality: string; ward?: string } } | null>(null)
+  const [notice, setNotice] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  async function generate(event: React.FormEvent) {
+    event.preventDefault()
+    setBusy(true); setNotice('')
+    try {
+      const response = await civicFetch('/api/qr', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ pin, locality, ward }) })
+      const payload = await response.json()
+      if (!response.ok) throw new Error(payload.error ?? 'Unable to create the QR code.')
+      setResult(payload)
+    } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to create the QR code.') } finally { setBusy(false) }
+  }
+
+  function download() {
+    if (!result) return
+    const link = document.createElement('a')
+    link.href = URL.createObjectURL(new Blob([result.svg], { type: 'image/svg+xml' }))
+    link.download = `civicchai-qr-${result.area.pin}-${result.area.locality.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.svg`
+    link.click()
+    URL.revokeObjectURL(link.href)
+  }
+
+  return (
+    <section className="rounded-lg border border-sidebar-border bg-sidebar-accent p-5">
+      <h3 className="text-sm font-semibold text-sidebar-foreground">Locality QR codes</h3>
+      <p className="mt-1 text-xs leading-relaxed text-sidebar-foreground/55">Print a signed QR code for a hub, market or street. Scanning it opens a report with this PIN and locality filled in. Altered or fake codes are rejected. A QR code is never treated as proof of residence.</p>
+      <form onSubmit={generate} className="mt-4 grid gap-3 sm:grid-cols-4">
+        <label className="text-xs text-sidebar-foreground/60">PIN<input required pattern="[0-9]{6}" value={pin} onChange={(event) => setPin(event.target.value.replace(/\D/g, '').slice(0, 6))} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" /></label>
+        <label className="text-xs text-sidebar-foreground/60 sm:col-span-2">Locality / place<input required maxLength={120} value={locality} onChange={(event) => setLocality(event.target.value)} placeholder="e.g. Station Road market" className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" /></label>
+        <label className="text-xs text-sidebar-foreground/60">Ward (optional)<input maxLength={100} value={ward} onChange={(event) => setWard(event.target.value)} className="mt-1 w-full rounded-md border border-sidebar-border bg-sidebar px-3 py-2 text-sm text-sidebar-foreground" /></label>
+        <button disabled={busy} className="rounded-md bg-gold px-4 py-2 text-xs font-semibold text-charcoal disabled:opacity-50 sm:col-span-4 sm:justify-self-start">{busy ? 'Creating…' : 'Create QR code'}</button>
+      </form>
+      {notice && <p role="alert" className="mt-3 text-xs text-heat">{notice}</p>}
+      {result && <div className="mt-4 flex flex-wrap items-center gap-5 rounded-md bg-sidebar p-4">
+        <div className="h-40 w-40 shrink-0 overflow-hidden rounded bg-white" aria-label={`QR code for ${result.area.locality}`} role="img" dangerouslySetInnerHTML={{ __html: result.svg }} />
+        <div className="min-w-0 space-y-2 text-xs text-sidebar-foreground/70">
+          <p className="text-sm font-semibold text-sidebar-foreground">{result.area.locality} · PIN {result.area.pin}{result.area.ward ? ` · ${result.area.ward}` : ''}</p>
+          <p className="break-all text-[11px] text-sidebar-foreground/50">{result.url}</p>
+          <div className="flex flex-wrap gap-2"><button type="button" onClick={download} className="rounded border border-sidebar-border px-3 py-1.5 font-semibold">Download SVG</button><a href={result.url} target="_blank" rel="noreferrer" className="rounded border border-sidebar-border px-3 py-1.5 font-semibold">Test the link</a></div>
+        </div>
+      </div>}
+    </section>
   )
 }
 

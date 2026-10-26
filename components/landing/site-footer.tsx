@@ -8,7 +8,7 @@ export function SiteFooter() {
   const { t } = useLanguage()
 
   return (
-    <footer className="border-t border-border bg-chai text-cream">
+    <footer className="border-t border-border bg-chai text-cream print:hidden">
       <div className="mx-auto max-w-6xl px-4 py-12 sm:px-6">
         <div className="flex flex-col justify-between gap-8 md:flex-row">
           <div className="max-w-xs">
@@ -23,30 +23,31 @@ export function SiteFooter() {
               title={t.footer.product}
               links={[
                 [t.nav.localChai, '/citizen'],
-                [t.nav.chaiTapri, '/citizen'],
-                [t.nav.startCharcha, '/citizen'],
+                [t.nav.chaiTapri, '/chai-tapri'],
+                [t.nav.startCharcha, '/citizen?report=1'],
+                ['Voice reporting', '/voice-agent'],
               ]}
             />
             <FooterCol
               title={t.footer.authorities}
               links={[
                 [t.nav.authorityLogin, '/control-room'],
-                ['GIS Hotspots', '/control-room'],
-                ['Analytics', '/control-room'],
+                ['Civic knowledge', '/knowledge'],
               ]}
             />
             <FooterCol
               title={t.footer.about}
               links={[
                 [t.nav.howItWorks, '/how-it-works'],
-                ['Accessibility', '/about'],
-                ['Civic education', '/about'],
+                [t.nav.about, '/about'],
+                ['Privacy notice', '/privacy'],
+                ['Community guidelines', '/community-guidelines'],
               ]}
             />
           </div>
         </div>
         <div className="mt-10 flex flex-col items-start justify-between gap-2 border-t border-cream/15 pt-6 text-xs text-cream/60 sm:flex-row sm:items-center">
-          <p>&copy; {new Date().getFullYear()} CivicChai.</p>
+          <p>&copy; {new Date().getFullYear()} CivicChai. Not an emergency service; for emergencies call 112.</p>
           <p className="font-deva">{t.footer.tag}</p>
         </div>
       </div>

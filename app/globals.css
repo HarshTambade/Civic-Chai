@@ -173,3 +173,11 @@
 .animate-heat {
   animation: heat-pulse 1.8s ease-in-out infinite;
 }
+
+/* Printable complaint report (SOP §4): keep brand colours and avoid splitting cards. */
+@media print {
+  html, body { background: #fff !important; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  section, article, header { break-inside: avoid; }
+  a[href^="http"]::after { content: " (" attr(href) ")"; font-size: 0.75em; word-break: break-all; }
+}

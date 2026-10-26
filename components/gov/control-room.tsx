@@ -114,7 +114,7 @@ export function ControlRoom() {
     if (role === 'department_operator') return item.id === 'home' || item.id === 'complaints'
     if (role === 'department_supervisor') return item.id === 'home' || item.id === 'complaints' || item.id === 'analytics'
     if (role === 'system_admin') return item.id === 'home' || item.id === 'system' || item.id === 'privacy'
-    if (role === 'auditor') return item.id === 'home' || item.id === 'audit'
+    if (role === 'auditor') return item.id === 'home' || item.id === 'audit' || item.id === 'analytics'
     if (item.id === 'registry') return canManageRegistry(role)
     if (item.id === 'audit') return role === 'authority_admin'
     if (item.id === 'moderation') return canModerate(role)

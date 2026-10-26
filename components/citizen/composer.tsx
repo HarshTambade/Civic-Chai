@@ -57,6 +57,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const [submissionError, setSubmissionError] = useState('')
   const [submittedIssue, setSubmittedIssue] = useState<IssueRecord | null>(null)
   const [distinctFromId, setDistinctFromId] = useState('')
+  const [qrArea, setQrArea] = useState<{ checked: boolean; label: string }>({ checked: false, label: '' })
   // Unknown until /api/health answers, so the form never flashes before the intake check.
   const [deployment, setDeployment] = useState<{ intake: boolean; uploads: boolean } | null>(null)
   const recognitionRef = useRef<any>(null)
@@ -79,6 +80,22 @@ export function Composer({ onClose }: { onClose: () => void }) {
     setOnlineConsent(area.consent.online_ai)
     setOfflineStorageConsent(area.consent.offline_storage)
   }, [area])
+
+  // A signed locality QR (?area=token) pre-fills the place; the citizen can still change it.
+  useEffect(() => {
+    const token = new URLSearchParams(window.location.search).get('area')
+    if (!token) { setQrArea({ checked: true, label: '' }); return }
+    let cancelled = false
+    fetch(`/api/qr?token=${encodeURIComponent(token)}`).then((response) => response.json()).then((payload) => {
+      if (cancelled) return
+      if (payload?.valid) {
+        setPin(payload.area.pin)
+        setLocality(payload.area.locality)
+        setQrArea({ checked: true, label: `${payload.area.locality} · PIN ${payload.area.pin}` })
+      } else setQrArea({ checked: true, label: '' })
+    }).catch(() => { if (!cancelled) setQrArea({ checked: true, label: '' }) })
+    return () => { cancelled = true }
+  }, [])
 
   useEffect(() => {
     let cancelled = false
@@ -299,7 +316,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
     ? analysis.duplicateCandidates
     : analysis?.duplicateIssue ? [{ issue: { ...analysis.duplicateIssue, department: analysis.department }, similarity: analysis.duplicateIssue.similarity, band: analysis.duplicateIssue.band, signals: [] as string[] }] : []
 
-  const ready = isHydrated && deployment !== null
+  const ready = isHydrated && deployment !== null && qrArea.checked
   const gate = !ready ? null
     // Sign-in comes first so visitors always see how to get an account.
     : !user ? <div className="space-y-3 rounded-2xl border border-border bg-card p-5 text-center"><p className="font-display text-lg font-bold text-charcoal">Sign in to report an issue</p><p className="text-sm text-charcoal/65">An account lets you track the report, receive status updates and confirm when it is fixed. Your name is never shown publicly.</p><Link href="/login?next=/citizen?report=1" className="inline-flex w-full justify-center rounded-xl bg-chai px-4 py-3 text-sm font-semibold text-cream">Sign in or create an account</Link><Link href="/voice-agent" className="block text-xs font-semibold text-chai underline">No smartphone app? Use the voice-assisted form</Link></div>
@@ -330,7 +347,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
           {!ready && <p role="status" className="flex items-center gap-2 text-sm text-charcoal/60"><Loader2 className="h-4 w-4 animate-spin" />Loading…</p>}
           {gate}
           {ready && !gate && step === 'location' && (
-            <LocationStep value={{ pin, locality, coordinates }} onChange={updateLocation} onConfirm={() => { setSubmissionError(''); setStep('compose') }} />
+            <LocationStep value={{ pin, locality, coordinates }} onChange={updateLocation} onConfirm={() => { setSubmissionError(''); setStep('compose') }} verifiedArea={qrArea.label || undefined} autoDetect={!qrArea.label} />
           )}
           {ready && !gate && (step === 'compose' || step === 'analyzing') && (
             <div className="space-y-4">
