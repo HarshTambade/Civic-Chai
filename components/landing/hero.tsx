@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
-import { Flame, Users, FileText, Clock, ArrowRight } from 'lucide-react'
+import { Flame, Users, FileText, Clock, ArrowRight, Presentation } from 'lucide-react'
 import { heatLabel } from '@/lib/issue-helpers'
 import { useLanguage } from '@/components/language-provider'
 
@@ -43,20 +43,27 @@ export function Hero() {
             >
               {t.hero.ctaSecondary}
             </Link>
+            <Link
+              href="/present"
+              className="inline-flex items-center gap-2 rounded-xl border border-terracotta/40 bg-terracotta/10 px-5 py-3 text-sm font-semibold text-terracotta transition-colors hover:bg-terracotta/15"
+            >
+              <Presentation className="h-4 w-4" />
+              Present
+            </Link>
           </div>
 
           <dl className="mt-9 flex flex-wrap gap-x-8 gap-y-3 text-sm">
             <div>
               <dt className="text-charcoal/60">{t.hero.cities}</dt>
-              <dd className="font-display text-xl font-bold text-chai">120+</dd>
+              <dd className="font-display text-xl font-bold text-chai">Web · Voice · Call</dd>
             </div>
             <div>
               <dt className="text-charcoal/60">{t.hero.issuesResolved}</dt>
-              <dd className="font-display text-xl font-bold text-leaf">18.4k</dd>
+              <dd className="font-display text-xl font-bold text-leaf">~1 km</dd>
             </div>
             <div>
               <dt className="text-charcoal/60">{t.hero.languages}</dt>
-              <dd className="font-display text-xl font-bold text-terracotta">3+</dd>
+              <dd className="font-display text-xl font-bold text-terracotta">3</dd>
             </div>
           </dl>
         </div>

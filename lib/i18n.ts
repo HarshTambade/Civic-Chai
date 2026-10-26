@@ -137,8 +137,8 @@ export const translations: Record<LanguageCode, TranslationDictionary> = {
         'Ab mohalla ki baat sirf tapri tak nahi. Report karo. Charcha karo. Vote karo. Aur dekho tumhari awaaz kahan tak pahunchti hai.',
       ctaPrimary: 'Start a Charcha',
       ctaSecondary: 'Explore Chai Tapri',
-      cities: 'Cities ki charcha',
-      issuesResolved: 'Issues resolved',
+      cities: 'Ways to report',
+      issuesResolved: 'Public map privacy',
       languages: 'Languages',
     },
     sections: {
@@ -278,8 +278,8 @@ export const translations: Record<LanguageCode, TranslationDictionary> = {
         'अब मोहल्ले की बात सिर्फ Tapri तक नहीं. रिपोर्ट करो. चर्चा करो. वोट करो. और देखो तुम्हारी आवाज़ कहाँ तक पहुँचती है.',
       ctaPrimary: 'चर्चा शुरू करें',
       ctaSecondary: 'चाय Tapri देखें',
-      cities: 'शहरों की चर्चा',
-      issuesResolved: 'सुलझे मुद्दे',
+      cities: 'शिकायत के तरीके',
+      issuesResolved: 'सार्वजनिक नक्शे की गोपनीयता',
       languages: 'भाषाएँ',
     },
     sections: {
@@ -417,8 +417,8 @@ export const translations: Record<LanguageCode, TranslationDictionary> = {
         'आता मॉलचा आवाजा फक्त tapri पर्यंत मर्यादित नाही. तक्रार करा. चर्चा करा. मत द्या. आणि पाहा तुमचा आवाज कोठेपर्यंत पोहोचतो.',
       ctaPrimary: 'चर्चा सुरू करा',
       ctaSecondary: 'चहा Tapri पहा',
-      cities: 'शहरांची चर्चा',
-      issuesResolved: 'निराकरण झालेले विषय',
+      cities: 'तक्रारीचे मार्ग',
+      issuesResolved: 'सार्वजनिक नकाशाची गोपनीयता',
       languages: 'भाषा',
     },
     sections: {
