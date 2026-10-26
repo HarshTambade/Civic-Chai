@@ -129,6 +129,30 @@
     @apply bg-background text-foreground;
     font-family: var(--font-sans);
   }
+
+  /* Tap feedback for every control. Utility classes on a component still take precedence. */
+  :where(button, [role='button'], a[href], summary, select, label:has(> input)) {
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation; /* no double-tap-zoom delay on mobile */
+  }
+  :where(button, [role='button'], summary, select):not(:disabled, [aria-disabled='true']) {
+    cursor: pointer;
+  }
+  :where(button, [role='button']):is(:disabled, [aria-disabled='true']) {
+    cursor: not-allowed;
+  }
+  :where(button, [role='button']) {
+    transition-property: transform, opacity, background-color, color, border-color, box-shadow;
+    transition-duration: 120ms;
+  }
+  :where(button, [role='button']):not(:disabled, [aria-disabled='true']):active {
+    opacity: 0.85;
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    :where(button, [role='button']):not(:disabled, [aria-disabled='true']):active {
+      transform: scale(0.97);
+    }
+  }
 }
 
 /* Paper grain texture used on warm surfaces */

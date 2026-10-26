@@ -17,6 +17,7 @@ import { localProfileKey, notifyProfileUpdated, useServiceArea } from './use-ser
 import { hottestScore } from '@/lib/issue-helpers'
 import { useLiveLocation, usePincode } from './use-location'
 import { CommunityMap } from '@/components/maps'
+import { HapticsToggle } from '@/components/haptics'
 import type { PublicMapCell } from '@/lib/heatmap'
 import {
   MapPin,
@@ -545,6 +546,7 @@ export function ProfileView() {
           <div className="sm:col-span-2"><button type="button" onClick={() => void fillFromLocation()} disabled={live.status === 'locating'} className="inline-flex items-center gap-1.5 rounded-lg border border-chai/30 bg-chai/5 px-3 py-2 text-xs font-semibold text-chai disabled:opacity-60"><MapPin className="h-3.5 w-3.5" />{live.status === 'locating' ? 'Finding your location…' : 'Use my current location'}</button>{live.error && <p role="alert" className="mt-1 text-xs text-heat">{live.error}</p>}<p className="mt-1 text-[11px] font-normal text-charcoal/45">Your coordinates are used once to look up the PIN with OpenStreetMap and are not saved.</p></div>
         </div>
         <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Notifications</legend>{(['in_app', 'email'] as const).map((key) => <label key={key} className="flex items-center gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={key === 'in_app' ? profile.notification_preferences?.in_app !== false : Boolean(profile.notification_preferences?.[key])} onChange={(event) => setProfile({ ...profile, notification_preferences: { ...profile.notification_preferences, [key]: event.target.checked } })} />{key === 'in_app' ? 'In-app status updates' : 'Email status updates (when email delivery is configured)'}</label>)}</fieldset>
+        <HapticsToggle />
         <fieldset className="space-y-2"><legend className="text-xs font-semibold uppercase tracking-wide text-charcoal/50">Optional processing choices</legend>{([['online_ai', 'Allow optional cloud AI for complaint classification'], ['device_location', 'Allow device coordinates on a report when I explicitly attach them'], ['offline_storage', 'Allow pending report drafts to be stored on this device']] as const).map(([key, label]) => <label key={key} className="flex items-start gap-2 text-sm text-charcoal/70"><input type="checkbox" checked={Boolean(profile.consent_preferences?.[key])} onChange={(event) => setProfile({ ...profile, consent_preferences: { ...profile.consent_preferences, [key]: event.target.checked } })} className="mt-1" />{label}</label>)}</fieldset>
         {notice && <p role="status" className="rounded-lg bg-muted p-3 text-sm">{notice}</p>}
         <button disabled={saving} className="rounded-lg bg-chai px-4 py-2.5 text-sm font-semibold text-cream disabled:opacity-50">{saving ? 'Saving…' : 'Save preferences'}</button>

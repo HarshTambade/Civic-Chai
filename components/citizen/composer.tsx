@@ -14,6 +14,7 @@ import { PwaInstallButton } from '@/components/pwa-install-button'
 import { useServiceArea } from './use-service-area'
 import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, joinTranscript, speechErrorMessage, speechLanguage, transcriptFromResults } from './speech'
 import { LocationStep, type ReportLocation } from './location-step'
+import { haptic } from '@/components/haptics'
 import Link from 'next/link'
 import {
   X,
@@ -68,6 +69,10 @@ export function Composer({ onClose }: { onClose: () => void }) {
   const prefilled = useRef(false)
 
   const canFile = Boolean(user && (user.role === 'citizen' || canManageIssues(user.role)))
+  // Feel the outcome: a double pulse when the report is filed, a buzz when something needs fixing.
+  useEffect(() => { if (step === 'done') haptic('success') }, [step])
+  useEffect(() => { if (submissionError) haptic('warning') }, [submissionError])
+
   const updateLocation = useCallback((next: Partial<ReportLocation>) => {
     if (next.pin !== undefined) setPin(next.pin)
     if (next.locality !== undefined) setLocality(next.locality)

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { cn } from '@/lib/utils'
 import { civicFetch } from '@/lib/client-api'
 import { useAuth } from '@/components/auth-provider'
+import { haptic } from '@/components/haptics'
 import type { IssueRecord } from '@/lib/types'
 import type { IssueComment } from '@/lib/issues'
 import { ChaiHeatMeter } from './chai-heat-meter'
@@ -62,6 +63,7 @@ export function ChaiCard({ issue }: { issue: IssueRecord }) {
       setSupported(true)
       setSupporters(data.issue.supporters)
       setHeat(data.issue.chaiHeat)
+      haptic('success')
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'Could not add support.')
     } finally {

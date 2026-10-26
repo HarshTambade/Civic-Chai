@@ -1,6 +1,7 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
 import { PwaRegister } from '@/components/pwa-register'
+import { HapticFeedback } from '@/components/haptics'
 import { AuthProvider } from '@/components/auth-provider'
 import { StreeChat } from '@/components/stree-chat'
 import { LanguageProvider } from '@/components/language-provider'
@@ -87,6 +88,7 @@ export default function RootLayout({
         <LanguageProvider>
           <AuthProvider>
             <PwaRegister />
+            <HapticFeedback />
             {children}
             <StreeChat />
           </AuthProvider>

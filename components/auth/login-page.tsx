@@ -5,6 +5,7 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ArrowRight, LogOut, ShieldCheck } from 'lucide-react'
 import { Logo } from '@/components/brand/logo'
+import { haptic } from '@/components/haptics'
 import { useAuth } from '@/components/auth-provider'
 import { DEMO_ACCOUNTS, ROLE_LABELS, isDemoAccountEmail, type AppUser } from '@/lib/roles'
 import { hasSupabaseConfig, isDemoModeEnabled, isLocalDemoModeEnabled } from '@/lib/supabase'
@@ -42,8 +43,10 @@ export function LoginPage() {
     setIsLoading(true)
     try {
       const account = await login(credentials)
+      haptic('success')
       router.replace(destinationFor(account))
     } catch (reason) {
+      haptic('error')
       setError(reason instanceof Error ? reason.message : 'Unable to sign in')
     } finally {
       setIsLoading(false)

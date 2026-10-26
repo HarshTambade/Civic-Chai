@@ -11,6 +11,7 @@ import { useServiceArea } from '@/components/citizen/use-service-area'
 import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, joinTranscript, speechErrorMessage, speechLanguage, transcriptFromResults, type SpeechRecognitionLike } from '@/components/citizen/speech'
 import { useLiveLocation } from '@/components/citizen/use-location'
 import { saveOfflineDraft } from '@/lib/offline-queue'
+import { haptic } from '@/components/haptics'
 import type { IssueRecord } from '@/lib/types'
 import { Check, Delete, MapPin, Mic, Phone, Square, Volume2 } from 'lucide-react'
 
@@ -151,6 +152,7 @@ export function VoiceAgent() {
       }
       const data = await submitIssuePayload(payload)
       setIssue(data)
+      haptic('success')
       setMessage(`Report ${data.documentId} is filed. The issue is routed to ${data.department}.`)
     } catch (error) {
       setMessage(error instanceof Error ? error.message : 'The issue could not be submitted.')
