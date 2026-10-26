@@ -17,6 +17,7 @@ import { PriorityBadge, StatusBadge, TrustBadge } from '@/components/brand/badge
 import { ChaiHeatMeter } from '@/components/brand/chai-heat-meter'
 import { CivicTimeline } from '@/components/brand/civic-timeline'
 import { DEPARTMENT_OPTIONS } from '@/lib/ai'
+import { adminPath, type GovernanceLevel } from '@/lib/jurisdiction'
 import {
   TriangleAlert,
   Clock,
@@ -155,12 +156,15 @@ export function OverviewView() {
 }
 
 /* ---------------- Complaints table ---------------- */
+const LEVEL_NAMES: Record<string, string> = { union: 'Union', state: 'State', local: 'Local body' } satisfies Record<GovernanceLevel, string>
+const FILTER_NAMES: Record<string, string> = { level: 'levels of government', subDistrict: 'talukas', source: 'channels', period: 'dates', sla: 'SLA states' }
+
 export function ComplaintsView() {
   const { user } = useAuth()
   const [selected, setSelected] = useState<string | null>(null)
   const [query, setQuery] = useState('')
   const [issues, setIssues] = useState<IssueRecord[]>([])
-  const [filters, setFilters] = useState({ state: '', district: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })
+  const [filters, setFilters] = useState({ level: '', state: '', district: '', subDistrict: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })
 
   async function loadIssues() {
     const res = await civicFetch('/api/issues')
@@ -192,6 +196,8 @@ export function ComplaintsView() {
     (!filters.department || i.department === filters.department) &&
     (!filters.state || i.state === filters.state) &&
     (!filters.district || i.district === filters.district) &&
+    (!filters.level || i.jurisdiction?.level === filters.level) &&
+    (!filters.subDistrict || i.subDistrict === filters.subDistrict) &&
     (!filters.municipality || i.municipality === filters.municipality) &&
     (!filters.ward || i.ward === filters.ward) &&
     (!filters.category || i.category === filters.category) &&
@@ -206,8 +212,10 @@ export function ComplaintsView() {
   )
   const active = issues.find((i) => i.id === selected)
   const options = {
+    level: ['union', 'state', 'local'],
     state: [...new Set(issues.map((i) => i.state).filter((value): value is string => Boolean(value)))],
     district: [...new Set(issues.map((i) => i.district).filter((value): value is string => Boolean(value)))],
+    subDistrict: [...new Set(issues.map((i) => i.subDistrict).filter((value): value is string => Boolean(value)))],
     municipality: [...new Set(issues.map((i) => i.municipality).filter((value): value is string => Boolean(value)))],
     ward: [...new Set(issues.map((i) => i.ward).filter((value): value is string => Boolean(value)))],
     department: [...new Set(issues.map((i) => i.department))],
@@ -236,17 +244,17 @@ export function ComplaintsView() {
         </div>
         {(Object.keys(options) as Array<keyof typeof options>).map((filter) => (
           <select key={filter} value={filters[filter]} onChange={(event) => setFilters((current) => ({ ...current, [filter]: event.target.value }))} aria-label={`Filter by ${filter}`} className="rounded-md border border-sidebar-border bg-sidebar-accent px-3 py-2 text-xs text-sidebar-foreground/80 outline-none focus:border-gold">
-            <option value="">All {filter === 'source' ? 'channels' : filter === 'period' ? 'dates' : filter === 'sla' ? 'SLA states' : filter}</option>{options[filter].map((option) => <option key={option} value={option}>{filter === 'source' ? option.toUpperCase() : filter === 'period' ? `Last ${option} days` : option}</option>)}
+            <option value="">All {FILTER_NAMES[filter] ?? filter}</option>{options[filter].map((option) => <option key={option} value={option}>{filter === 'source' ? option.toUpperCase() : filter === 'period' ? `Last ${option} days` : filter === 'level' ? LEVEL_NAMES[option] : option}</option>)}
           </select>
         ))}
-        <button onClick={() => setFilters({ state: '', district: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })} className="rounded-md border border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/60">Clear</button>
+        <button onClick={() => setFilters({ level: '', state: '', district: '', subDistrict: '', municipality: '', ward: '', department: '', category: '', pin: '', locality: '', priority: '', status: '', source: '', trust: '', sla: '', period: '' })} className="rounded-md border border-sidebar-border px-3 py-2 text-xs text-sidebar-foreground/60">Clear</button>
       </div>
 
       <div className="overflow-x-auto rounded-lg border border-sidebar-border">
-        <table className="w-full min-w-[820px] text-left text-sm">
+        <table className="w-full min-w-[900px] text-left text-sm">
           <thead className="bg-sidebar-accent text-xs uppercase tracking-wide text-sidebar-foreground/50">
             <tr>
-              {['Issue ID', 'Issue', 'PIN', 'Dept', 'Priority', 'Trust', 'Heat', 'Reports', 'Status', 'Age'].map(
+              {['Issue ID', 'Issue', 'PIN', 'Dept', 'Level', 'Priority', 'Trust', 'Heat', 'Reports', 'Status', 'Age'].map(
                 (h) => (
                   <th key={h} className="whitespace-nowrap px-3 py-2.5 font-medium">
                     {h}
@@ -268,6 +276,7 @@ export function ComplaintsView() {
                 <td className="px-3 py-2.5 font-medium text-sidebar-foreground">{i.title}</td>
                 <td className="px-3 py-2.5">{i.pin}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 text-xs">{i.department}</td>
+                <td className="whitespace-nowrap px-3 py-2.5 text-xs" title={i.jurisdiction?.authority}><span className={i.jurisdiction && i.jurisdiction.level !== 'local' ? 'rounded bg-gold/20 px-1.5 py-0.5 font-semibold text-gold' : 'text-sidebar-foreground/60'}>{i.jurisdiction ? LEVEL_NAMES[i.jurisdiction.level] : '—'}</span></td>
                 <td className="px-3 py-2.5">
                   <PriorityBadge priority={i.priority} />
                 </td>
@@ -282,7 +291,7 @@ export function ComplaintsView() {
                 </td>
               </tr>
             ))}
-            {rows.length === 0 && <tr><td colSpan={10} className="px-4 py-8 text-center text-sm text-sidebar-foreground/50">No complaints match the selected filters.</td></tr>}
+            {rows.length === 0 && <tr><td colSpan={11} className="px-4 py-8 text-center text-sm text-sidebar-foreground/50">No complaints match the selected filters.</td></tr>}
           </tbody>
         </table>
       </div>
@@ -459,6 +468,8 @@ function IssueDetail({
         </Section>
         <Section title="Routing & verified public directory">
           <p className="text-sm text-sidebar-foreground/75">Suggested department: {issue.department}</p>
+          <p className="mt-2 text-xs text-sidebar-foreground/60">{adminPath(issue).join(' › ')}{issue.areaSource === 'directory' ? ' (PIN directory, unverified)' : issue.areaSource === 'verified' ? ' (verified hub)' : ''}</p>
+          {issue.jurisdiction && <div className={`mt-2 rounded-md border p-3 ${issue.jurisdiction.level === 'local' ? 'border-sidebar-border' : 'border-gold/40 bg-gold/10'}`}><p className="text-xs font-semibold text-sidebar-foreground">{issue.jurisdiction.levelLabel} · {issue.jurisdiction.authority}</p><p className="mt-1 text-[11px] leading-relaxed text-sidebar-foreground/60">{issue.jurisdiction.reason} {issue.jurisdiction.basis}{issue.jurisdiction.level !== 'local' ? ' Forward it to this authority if it is outside your remit.' : ''}</p></div>}
           <p className="mt-1 text-xs text-sidebar-foreground/50">Internal assigned office: {issue.officer || 'Not assigned'}</p>
           {verifiedRegistry.hubs.length ? verifiedRegistry.hubs.map((hub) => <div key={hub.id} className="mt-3 rounded-md border border-sidebar-border bg-sidebar-accent p-3"><p className="flex items-center gap-2 text-sm font-semibold"><MapPin className="h-4 w-4 text-chai" />{hub.name}</p><p className="mt-1 text-xs text-sidebar-foreground/65">{hub.address}</p><p className="mt-1 text-xs text-sidebar-foreground/55">{[hub.public_phone, hub.public_email].filter(Boolean).join(' · ')}</p><a href={hub.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] text-chai underline">Verified source</a></div>) : <p className="mt-2 text-xs text-sidebar-foreground/45">No authority-verified public hub is registered for this PIN.</p>}
           {verifiedOfficers.map((officer) => <div key={officer.id} className="mt-3 rounded-md border border-sidebar-border bg-sidebar-accent p-3"><p className="text-sm font-semibold">{officer.name} · {officer.role}</p><p className="mt-1 text-xs text-sidebar-foreground/60">{officer.department} · {[officer.public_phone, officer.public_email].filter(Boolean).join(' · ')}</p><a href={officer.source_url} target="_blank" rel="noreferrer" className="mt-2 inline-block text-[10px] text-chai underline">Verified source</a></div>)}

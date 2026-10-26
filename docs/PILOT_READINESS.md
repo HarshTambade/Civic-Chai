@@ -21,7 +21,7 @@ This is the implementation audit for `CivicChai_PS2_Master_SOP_v2_Two_Portals.pd
 
 ## Required before real pilot submissions
 
-1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql`, `004_staff_mfa_rls.sql`, `005_pilot_workflow.sql`, `006_anonymous_handles.sql`, `007_service_area_pins.sql` and `008_reporter_withdrawal.sql` in order (or import the complete `supabase/schema.sql` into a new project).
+1. Apply `supabase/migrations/001_init.sql`, `002_civicchai_platform.sql`, `003_pilot_hardening.sql`, `004_staff_mfa_rls.sql`, `005_pilot_workflow.sql`, `006_anonymous_handles.sql`, `007_service_area_pins.sql`, `008_reporter_withdrawal.sql` and `009_jurisdiction_hierarchy.sql` in order (or import the complete `supabase/schema.sql` into a new project).
 2. Configure the production Supabase URL, publishable key and server-only service role key. Confirm `/api/health` reports ready (schema version 7) and `/api/system/health` reports the database connected.
 3. Rotate any Supabase service-role or Groq credentials that were shared outside the secret manager, and store the replacement only in deployment secrets. Never commit `.env.local`.
 4. Set `NEXT_PUBLIC_CIVICCHAI_DEMO_MODE=false` so `/login` does not list shared credentials and demo staff accounts require MFA. Replace shared demo passwords, remove unused demos, provision individual staff accounts, set jurisdiction/department scope, and enroll each staff account in TOTP MFA. Use demo accounts only in a controlled pilot environment.

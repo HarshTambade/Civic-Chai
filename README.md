@@ -374,6 +374,7 @@ Use a connected Supabase project to exercise durable authentication, database-ba
    - `supabase/migrations/006_anonymous_handles.sql`
    - `supabase/migrations/007_service_area_pins.sql`
    - `supabase/migrations/008_reporter_withdrawal.sql`
+   - `supabase/migrations/009_jurisdiction_hierarchy.sql`
 
    `supabase/schema.sql` is also provided as a consolidated schema for a fresh SQL Editor import. Prefer either the ordered migrations or the consolidated schema, not both on the same database.
 3. Optionally run `supabase/seed.sql` to insert clearly labeled synthetic issues for a connected demo. No real officers, public contacts, laws, or SLAs are seeded as verified.
@@ -521,6 +522,7 @@ An issue stores a public-facing document ID and description, original/normalized
 - `supabase/migrations/004_staff_mfa_rls.sql`: requires MFA for staff data access through both app routes and direct database API requests.
 - `supabase/migrations/007_service_area_pins.sql`: lets staff cover several PIN codes (`profiles.service_pins`), enforced in API scope checks and database functions; gives the demo staff the demo PINs 401208–401211; sets schema version 7.
 - `supabase/migrations/008_reporter_withdrawal.sql`: lets the person who filed a complaint take it back (`withdraw_issue`). Untouched complaints are deleted; ones already routed or worked on become `Withdrawn`, leave public view and keep their audit trail; sets schema version 8.
+- `supabase/migrations/009_jurisdiction_hierarchy.sql`: records each report's administrative area (State › District › Taluka › Local body › Ward › PIN), whether it is urban or rural, and whether the labels are verified or from the India Post / OpenStreetMap directory; sets schema version 9. The responsible level of government is derived in `lib/jurisdiction.ts`.
 - `supabase/migrations/006_anonymous_handles.sql`: gives every profile a stable anonymous public handle (for example `KadakKulhad-3F9A`), stamps comments with the author's handle, stops defaulting private names to the email prefix, and sets schema version 6.
 - `supabase/migrations/005_pilot_workflow.sql`: adds the `Municipal Operations` fallback department, accepts a public resolution note in place of a mandatory official URL, records `closed_at`, and sets schema version 5 (checked by `/api/health`).
 - `supabase/schema.sql`: consolidated fresh-project schema.

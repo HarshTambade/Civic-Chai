@@ -11,7 +11,8 @@ import { CivicTimeline } from '@/components/brand/civic-timeline'
 import { StatusBadge, PriorityBadge } from '@/components/brand/badges'
 import { civicFetch } from '@/lib/client-api'
 import type { IssueRecord } from '@/lib/types'
-import { ArrowLeft, ExternalLink, FileText, MapPin, Printer, ShieldCheck } from 'lucide-react'
+import { adminPath } from '@/lib/jurisdiction'
+import { ArrowLeft, ChevronRight, ExternalLink, FileText, Landmark, MapPin, Printer, ShieldCheck } from 'lucide-react'
 
 type RegistryData = {
   jurisdiction?: { name: string; level: string; source_url?: string; source_version?: string; verified_at?: string } | null
@@ -33,6 +34,29 @@ function Factors({ title, factors }: { title: string; factors?: Record<string, n
 }
 
 /** SOP civic education card: every answer comes from the classification or the verified registry, never a guess. */
+/** Which level of government is responsible, and where the report sits in the administrative hierarchy. */
+function ResponsibleAuthority({ issue }: { issue: IssueRecord }) {
+  const path = adminPath(issue)
+  const assessment = issue.jurisdiction
+  return (
+    <div className="mt-4 rounded-xl border border-border bg-secondary/40 p-4">
+      <p className="text-xs font-semibold uppercase tracking-wider text-charcoal/50">Administrative area</p>
+      <ol className="mt-2 flex flex-wrap items-center gap-1 text-sm font-semibold text-charcoal" aria-label="State, district, taluka, local body, ward and PIN">
+        {path.map((part, index) => <li key={part} className="flex items-center gap-1">{index > 0 && <ChevronRight className="h-3.5 w-3.5 text-charcoal/35" aria-hidden />}{part}</li>)}
+      </ol>
+      <p className="mt-1 text-[11px] text-charcoal/50">{issue.areaSource === 'verified' ? 'From a verified authority hub.' : issue.areaSource === 'directory' ? 'From the India Post PIN directory and OpenStreetMap; not yet verified by the authority.' : 'Only the PIN is known for this report.'}{issue.localBodyType && issue.localBodyType !== 'unknown' ? ` ${issue.localBodyType === 'urban' ? 'Urban' : 'Rural'} area.` : ''}</p>
+      {assessment && (
+        <div className="mt-4 border-t border-border pt-3">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wider text-charcoal/50"><Landmark className="h-3.5 w-3.5" />Responsible level of government</p>
+          <p className="mt-1 font-semibold text-charcoal">{assessment.levelLabel} · {assessment.authority}</p>
+          <p className="mt-1 text-xs leading-relaxed text-charcoal/65">{assessment.reason} {assessment.basis}</p>
+          <p className="mt-1 text-[11px] text-charcoal/45">Automatic suggestion from the Constitution's division of responsibilities. The authority confirms who owns the asset.</p>
+        </div>
+      )}
+    </div>
+  )
+}
+
 function EducationCard({ issue, registry }: { issue: IssueRecord; registry: RegistryData }) {
   const officer = registry.officers?.find((record) => record.department === issue.department)
   const hub = registry.hubs?.[0]
@@ -126,7 +150,7 @@ export default function IssueReportPage() {
               <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Complaint summary</h2><p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-charcoal/75">{issue.description}</p><p className="mt-3 text-xs leading-relaxed text-charcoal/50">Original-language text and any personal details are withheld from this public page. Authorized case workers can access the protected report record.</p></section>
               {evidence.length > 0 && <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Protected evidence</h2><p className="mt-1 text-xs text-charcoal/55">Visible only to the report creator and authorized case workers. Signed links expire after two minutes.</p><div className="mt-3 grid grid-cols-2 gap-3 sm:grid-cols-3">{evidence.map((item) => item.media_type.startsWith('video/') ? <video key={item.id} src={item.url} controls preload="metadata" aria-label={item.caption ?? 'Protected civic complaint evidence'} className="w-full rounded-xl border border-border" /> : <a key={item.id} href={item.url} target="_blank" rel="noreferrer"><img src={item.url} alt={item.caption ?? 'Protected civic complaint evidence'} className="aspect-square w-full rounded-xl border border-border object-cover" /></a>)}</div></section>}
               <div className="grid gap-4 sm:grid-cols-2"><Factors title="Priority factors" factors={issue.priorityFactors} /><Factors title="Trust / evidence factors" factors={issue.trustFactors} /></div>
-              <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Jurisdiction and official service information</h2><p className="mt-2 text-sm text-charcoal/65">{registry.jurisdiction ? `${registry.jurisdiction.name} · ${registry.jurisdiction.level}` : `PIN ${issue.pin} · ${issue.locality}`}</p>
+              <section className="rounded-2xl border border-border bg-card p-5 sm:p-6"><h2 className="font-display text-lg font-bold">Jurisdiction and official service information</h2><p className="mt-2 text-sm text-charcoal/65">{registry.jurisdiction ? `${registry.jurisdiction.name} · ${registry.jurisdiction.level}` : `PIN ${issue.pin} · ${issue.locality}`}</p><ResponsibleAuthority issue={issue} />
                 {registry.hubs?.length ? <div className="mt-4 space-y-3">{registry.hubs.map((hub) => <article key={hub.id} className="rounded-xl border border-leaf/30 bg-leaf/5 p-4"><p className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4 text-leaf" />{hub.name}</p><p className="mt-1 text-sm text-charcoal/70">{hub.address}{hub.ward ? ` · ${hub.ward}` : ''}</p><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-charcoal/65">{hub.public_phone && <a href={`tel:${hub.public_phone}`} className="underline">{hub.public_phone}</a>}{hub.public_email && <a href={`mailto:${hub.public_email}`} className="underline">{hub.public_email}</a>}<a href={hub.source_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 underline">Official source <ExternalLink className="h-3 w-3" /></a></div><p className="mt-1 text-[10px] text-charcoal/45">Verified {hub.verified_at ? new Date(hub.verified_at).toLocaleDateString('en-IN') : 'by authority'} · source version {hub.source_version}</p></article>)}</div> : <p className="mt-3 rounded-xl bg-muted p-3 text-sm text-charcoal/60">No verified public authority hub is registered for this PIN. CivicChai does not guess an office or contact.</p>}
                 {registry.officers?.filter((officer) => officer.department === issue.department).map((officer) => <article key={officer.id} className="mt-3 rounded-xl border border-border p-4"><p className="font-semibold">{officer.name} · {officer.role}</p><p className="text-sm text-charcoal/65">{officer.department} · {officer.hub}</p><div className="mt-2 flex gap-4 text-xs">{officer.public_phone && <a href={`tel:${officer.public_phone}`} className="underline">{officer.public_phone}</a>}{officer.public_email && <a href={`mailto:${officer.public_email}`} className="underline">{officer.public_email}</a>}<a href={officer.source_url} target="_blank" rel="noreferrer" className="underline">Source</a></div></article>)}
               </section>

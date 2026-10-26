@@ -2,12 +2,18 @@
 // Nominatim instance and PIN codes to the India Post PIN lookup; both are cached so
 // repeat lookups stay within the providers' fair-use policies.
 
+import { localBodyTypeFrom, type LocalBodyType } from '@/lib/jurisdiction'
+
 export type ReverseGeocode = {
   pin: string
   locality: string
   city: string
   district: string
+  /** Taluka / tehsil, when the map knows it. */
+  subDistrict: string
   state: string
+  /** City and town areas are urban; villages and hamlets are rural. */
+  settlement: LocalBodyType
   label: string
 }
 
@@ -17,6 +23,9 @@ export type PincodeInfo = {
   district: string
   state: string
   localities: string[]
+  offices: Array<{ name: string; branchType: string; block: string }>
+  /** District and taluka from OpenStreetMap; current where the postal directory predates a district split. */
+  map: { district: string; subDistrict: string; state: string }
   center: { latitude: number; longitude: number } | null
 }
 
@@ -54,6 +63,11 @@ async function getJson(url: string) {
 
 const str = (value: unknown) => (typeof value === 'string' ? value.trim() : '')
 
+/** "Vasai Subdistrict" → "Vasai", "Palghar District" → "Palghar". */
+function areaName(value: unknown) {
+  return str(value).replace(/\s+(?:sub-?district|district|taluka|taluk|tehsil|tahsil)$/i, '')
+}
+
 export function isValidCoordinate(latitude: number, longitude: number) {
   return Number.isFinite(latitude) && Number.isFinite(longitude) && Math.abs(latitude) <= 90 && Math.abs(longitude) <= 180
 }
@@ -70,18 +84,20 @@ export async function reverseGeocode(latitude: number, longitude: number): Promi
       pin: /^\d{6}$/.test(pin) ? pin : '',
       locality,
       city: str(address.city) || str(address.town) || str(address.village) || str(address.county),
-      district: str(address.state_district) || str(address.county),
+      district: areaName(address.state_district) || areaName(address.county),
+      subDistrict: str(address.state_district) ? areaName(address.county) : '',
       state: str(address.state),
+      settlement: str(address.city) || str(address.town) ? 'urban' : str(address.village) || str(address.hamlet) ? 'rural' : 'unknown',
       label: str(payload?.display_name),
     }
   })
 }
 
 export async function lookupPincode(pin: string): Promise<PincodeInfo> {
-  return cached(`pin:${pin}`, async () => {
+  return cached(`pin-v2:${pin}`, async () => {
     const [post, place] = await Promise.allSettled([
       getJson(`${PINCODE_API_URL}/pincode/${pin}`),
-      getJson(`${NOMINATIM_URL}/search?format=jsonv2&postalcode=${pin}&countrycodes=in&limit=1`),
+      getJson(`${NOMINATIM_URL}/search?format=jsonv2&addressdetails=1&postalcode=${pin}&countrycodes=in&limit=1`),
     ])
     const record = post.status === 'fulfilled' && Array.isArray(post.value) ? post.value[0] : null
     const offices = record?.Status === 'Success' && Array.isArray(record.PostOffice) ? record.PostOffice as Array<Record<string, unknown>> : []
@@ -94,7 +110,51 @@ export async function lookupPincode(pin: string): Promise<PincodeInfo> {
       district: str(offices[0]?.District),
       state: str(offices[0]?.State),
       localities: [...new Set(offices.map((office) => str(office.Name)).filter(Boolean))].sort(),
+      map: {
+        district: areaName(first?.address?.state_district) || areaName(first?.address?.county),
+        subDistrict: first?.address?.state_district ? areaName(first?.address?.county) : '',
+        state: str(first?.address?.state),
+      },
+      offices: offices.map((office) => ({ name: str(office.Name), branchType: str(office.BranchType), block: str(office.Block) })).filter((office) => office.name),
       center: isValidCoordinate(latitude, longitude) ? { latitude, longitude } : null,
     }
   })
+}
+
+export type DirectoryArea = { state: string; district: string; subDistrict: string; localBody: string; localBodyType: LocalBodyType }
+
+const AREA_LOOKUP_MS = 3500
+
+/**
+ * State, district, taluka and local body for a report, from the India Post PIN directory
+ * and (when the reporter shared a location) OpenStreetMap. Not verified by the authority.
+ * Filing never waits longer than a few seconds for it; null when nothing is known.
+ */
+export async function directoryArea(pin: string, locality: string, coordinates?: { latitude: number; longitude: number } | null): Promise<DirectoryArea | null> {
+  if (process.env.CIVICCHAI_GEO_LOOKUPS === 'off' || !/^\d{6}$/.test(pin)) return null
+  const lookup = Promise.allSettled([
+    lookupPincode(pin),
+    coordinates && isValidCoordinate(coordinates.latitude, coordinates.longitude) ? reverseGeocode(coordinates.latitude, coordinates.longitude) : Promise.resolve(null),
+  ])
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), AREA_LOOKUP_MS))
+  const settled = await Promise.race([lookup, timeout])
+  if (!settled) return null
+  const post = settled[0].status === 'fulfilled' ? settled[0].value : null
+  const map = settled[1].status === 'fulfilled' ? settled[1].value : null
+  // The map's answer only counts when it agrees with the reported PIN.
+  const place = map && (!map.pin || map.pin === pin) ? map : null
+  const offices = post?.offices ?? []
+  const lower = locality.trim().toLowerCase()
+  const office = offices.find((item) => lower && (item.name.toLowerCase() === lower || lower.includes(item.name.toLowerCase()))) ?? offices[0]
+  const block = office?.block && !/^(na|n\.a\.|-)$/i.test(office.block) ? office.block : ''
+  // OpenStreetMap is preferred for district and taluka: the postal directory still lists
+  // some areas under their old district (Palghar PINs under Thane, for example).
+  const area = {
+    state: place?.state || post?.map?.state || post?.state || '',
+    district: place?.district || post?.map?.district || post?.district || '',
+    subDistrict: place?.subDistrict || post?.map?.subDistrict || block,
+    localBody: place?.settlement !== 'unknown' ? place?.city ?? '' : '',
+    localBodyType: localBodyTypeFrom({ mapSettlement: place?.settlement, locality, offices }),
+  }
+  return area.state || area.district ? area : null
 }

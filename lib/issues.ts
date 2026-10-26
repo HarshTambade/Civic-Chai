@@ -4,6 +4,8 @@ import { recordFallbackAudit } from '@/lib/audit'
 import { redactPublicText, safeComment } from '@/lib/privacy'
 import type { CreateIssueInput, IssueRecord, IssueStatus } from '@/lib/types'
 import { anonymousHandle } from '@/lib/anonymity'
+import { assessJurisdiction, type LocalBodyType } from '@/lib/jurisdiction'
+import { directoryArea } from '@/lib/geo'
 
 const ISSUE_FALLBACK_STORE_KEY = '__civicchai_issue_store__'
 const COMMENT_FALLBACK_STORE_KEY = '__civicchai_comment_store__'
@@ -55,6 +57,8 @@ export function getFallbackIssueSupporters(issueId: string) {
 export function normalizeIssue(row: Record<string, any>): IssueRecord {
   const chaiHeat = Number(row.chai_heat ?? row.chaiHeat ?? 0)
   const daysUnresolved = Number(row.days_unresolved ?? row.daysUnresolved ?? 0)
+  const bodyType = row.local_body_type ?? row.localBodyType
+  const localBodyType: LocalBodyType = bodyType === 'urban' || bodyType === 'rural' ? bodyType : 'unknown'
   return {
     id: String(row.id),
     document_id: row.document_id,
@@ -71,6 +75,10 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
     district: typeof row.district === 'string' ? row.district : undefined,
     municipality: typeof row.municipality === 'string' ? row.municipality : undefined,
     ward: typeof row.ward === 'string' ? row.ward : undefined,
+    subDistrict: typeof (row.sub_district ?? row.subDistrict) === 'string' ? row.sub_district ?? row.subDistrict : undefined,
+    localBodyType: localBodyType,
+    areaSource: row.area_source ?? row.areaSource ?? (row.state || row.district || row.municipality || row.ward ? 'verified' : 'none'),
+    jurisdiction: assessJurisdiction({ text: `${row.title ?? ''} ${row.original_text ?? row.description ?? ''}`, category: String(row.category ?? ''), localBodyType }),
     status: (row.status ?? 'Filed') as IssueStatus,
     priority: row.priority ?? 'Moderate',
     priorityScore: Number(row.priority_score ?? row.priorityScore ?? 0),
@@ -110,6 +118,24 @@ export function normalizeIssue(row: Record<string, any>): IssueRecord {
 
 const PUBLIC_COLUMNS = 'id,document_id,title,description,normalized_text,category,department,pin,locality,state,district,municipality,ward,status,priority,priority_score,priority_factors,trust_factors,ai_confidence,language,source_channel,model_version,trust,chai_heat,supporters,reports,comments,days_unresolved,officer,hub,sla_due_at,is_demo,duplicate_of,duplicate_decision,has_evidence,is_public,created_at,updated_at'
 
+// Migration 009 adds the area columns; older databases are read without them.
+const AREA_COLUMNS = ',sub_district,local_body_type,area_source'
+const AREA_COLUMN_ERROR = /sub_district|local_body_type|area_source/
+let areaColumnsAvailable = true
+
+function publicColumns() {
+  return areaColumnsAvailable ? PUBLIC_COLUMNS + AREA_COLUMNS : PUBLIC_COLUMNS
+}
+
+async function withAreaColumns<T extends { error: { message?: string } | null }>(run: (columns: string) => PromiseLike<T>): Promise<T> {
+  const result = await run(publicColumns())
+  if (result.error && areaColumnsAvailable && AREA_COLUMN_ERROR.test(result.error.message ?? '')) {
+    areaColumnsAvailable = false
+    return run(publicColumns())
+  }
+  return result
+}
+
 export async function getIssues(client = getSupabaseClient(), includeRestricted = false): Promise<IssueRecord[]> {
   if (!client) {
     return [...getFallbackIssueStore()].filter((issue) => includeRestricted || issue.isPublic !== false).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
@@ -117,7 +143,7 @@ export async function getIssues(client = getSupabaseClient(), includeRestricted 
   const rows: IssueRecord[] = []
   const pageSize = 500
   for (let offset = 0; ; offset += pageSize) {
-    const { data, error } = await client.from('issues').select(includeRestricted ? '*' : PUBLIC_COLUMNS).order('created_at', { ascending: false }).range(offset, offset + pageSize - 1)
+    const { data, error } = await withAreaColumns((columns) => client.from('issues').select(includeRestricted ? '*' : columns).order('created_at', { ascending: false }).range(offset, offset + pageSize - 1))
     if (error) throw error
     rows.push(...(data ?? []).map(normalizeIssue))
     if (!data || data.length < pageSize) break
@@ -128,9 +154,7 @@ export async function getIssues(client = getSupabaseClient(), includeRestricted 
 
 export async function getIssueById(id: string, client = getSupabaseClient(), includeRestricted = false): Promise<IssueRecord | null> {
   if (!client) return getFallbackIssueStore().find((issue) => issue.id === id || issue.documentId === id) ?? null
-  const byDocument = id.startsWith('CC-')
-    ? await client.from('issues').select(includeRestricted ? '*' : PUBLIC_COLUMNS).eq('document_id', id).maybeSingle()
-    : await client.from('issues').select(includeRestricted ? '*' : PUBLIC_COLUMNS).eq('id', id).maybeSingle()
+  const byDocument = await withAreaColumns((columns) => client.from('issues').select(includeRestricted ? '*' : columns).eq(id.startsWith('CC-') ? 'document_id' : 'id', id).maybeSingle())
   const { data, error } = byDocument
   if (error) throw error
   if (!data) return null
@@ -177,6 +201,9 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
       if (areaSignatures.size === 1 && candidates.length) verifiedArea = candidates[0]
     }
   }
+  // The administrative area: verified hub labels when they exist, otherwise the PIN / map directory.
+  const directory = await directoryArea(input.pin, input.locality, input.location_lat != null && input.location_lng != null ? { latitude: input.location_lat, longitude: input.location_lng } : null).catch(() => null)
+  const hasVerifiedArea = Boolean(verifiedArea.state || verifiedArea.district || verifiedArea.municipality || verifiedArea.ward)
   const documentId = `CC-${input.pin || '000000'}-${new Date().getFullYear()}-${crypto.randomUUID().slice(0, 8).toUpperCase()}`
   const payload = {
     document_id: documentId,
@@ -188,10 +215,13 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
     department: input.department,
     pin: input.pin,
     locality: input.locality,
-    state: verifiedArea.state ?? null,
-    district: verifiedArea.district ?? null,
-    municipality: verifiedArea.municipality ?? null,
+    state: verifiedArea.state || directory?.state || null,
+    district: verifiedArea.district || directory?.district || null,
+    municipality: verifiedArea.municipality || directory?.localBody || null,
     ward: verifiedArea.ward ?? null,
+    sub_district: directory?.subDistrict || null,
+    local_body_type: directory?.localBodyType ?? 'unknown',
+    area_source: hasVerifiedArea ? 'verified' : directory ? 'directory' : 'none',
     status: input.status ?? 'Filed',
     priority: priorityResult.priority,
     priority_score: priorityResult.score,
@@ -227,7 +257,12 @@ export async function createIssue(input: CreateIssueInput, client = getSupabaseC
     return issue
   }
 
-  const { data, error } = await client.from('issues').insert(payload).select('*').single()
+  let { data, error } = await client.from('issues').insert(payload).select('*').single()
+  if (error && AREA_COLUMN_ERROR.test(error.message ?? '')) {
+    // Databases without migration 009 store the report without the new area fields.
+    const { sub_district: _subDistrict, local_body_type: _bodyType, area_source: _source, ...legacy } = payload
+    ;({ data, error } = await client.from('issues').insert(legacy).select('*').single())
+  }
   if (error) throw error
   const issue = normalizeIssue(data)
   await client.from('status_events').insert({ issue_id: issue.id, old_status: null, new_status: issue.status, actor_id: input.created_by ?? null, note: `Report filed through ${payload.source_channel} intake.` })
@@ -378,7 +413,7 @@ export async function getMyIssues(userId: string, client = getSupabaseClient()):
   const relationshipRows = (relationships ?? []) as Array<{ issue_id: string; relationship: 'filed' | 'supported' | 'followed' }>
   const ids = relationshipRows.map((row) => row.issue_id)
   if (!ids.length) return []
-  const { data } = await client.from('issues').select(PUBLIC_COLUMNS).in('id', ids).order('created_at', { ascending: false })
+  const { data } = await withAreaColumns((columns) => client.from('issues').select(columns).in('id', ids).order('created_at', { ascending: false }))
   const relationshipById = new Map(relationshipRows.map((row) => [row.issue_id, row.relationship] as const))
   return (data ?? []).map((row: any) => ({ ...normalizeIssue(row), createdBy: relationshipById.get(row.id) === 'filed' ? userId : undefined, myRelationship: relationshipById.get(row.id) }))
 }

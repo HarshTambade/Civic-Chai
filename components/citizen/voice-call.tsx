@@ -49,13 +49,13 @@ const UI = {
     noRecognition: 'This browser cannot hear speech. The agent still talks; answer by typing or with the keypad. Chrome or Edge can hear you.',
     tapToCall: 'Tap to call', youAre: (handle: string) => `you are ${handle}`, signIn: 'Sign in to call',
     ringing: 'Ringing…', connecting: 'Connecting you to the CivicChai agent…', locating: 'Finding your location…',
-    speaking: 'CivicChai is speaking', listening: 'Listening… go ahead', understanding: 'Understanding…', filing: 'Filing your report…', withdrawing: 'Taking it back…',
+    speaking: 'CivicChai is speaking', listening: 'Listening… take your time', understanding: 'Understanding…', filing: 'Filing your report…', withdrawing: 'Taking it back…',
     yourTurnType: 'Your turn: type or use the keypad', yourTurnMic: 'Your turn: tap the mic to talk',
     ended: (time: string) => `Call ended · ${time}`,
     checklist: ['Problem', 'Place', 'PIN', 'How long', 'Proof', 'Filed'],
     typePlaceholder: 'Or type your answer', send: 'Send answer',
     mute: 'Mute', unmute: 'Unmute', keypad: 'Keypad', speaker: 'Speaker', repeat: 'Repeat', captions: 'Captions', restart: 'Start over', end: 'End call', hide: 'Hide', back: 'Back', del: 'Delete digit',
-    tapToTalk: 'Tap to talk', interrupt: 'Interrupt and answer', speakerOff: 'Speaker off · captions only', captionsOff: 'Captions are hidden',
+    tapToTalk: 'Tap to talk', doneSpeaking: "I'm done speaking", interrupt: 'Interrupt and answer', speakerOff: 'Speaker off · captions only', captionsOff: 'Captions are hidden',
     keypadPin: 'Type the 6-digit PIN', keypadYesNo: '1 = yes · 2 = no', keypadHelp: '# sends · * clears',
     filed: 'Report filed', routed: (department: string) => `Routed to ${department}`, openReport: 'Open report', myCharcha: 'My Charcha',
     noReport: 'No report was filed on this call.', draftSaved: 'Your complaint is saved on this device as a draft. It is sent when you reconnect.',
@@ -78,13 +78,13 @@ const UI = {
     noRecognition: 'यह ब्राउज़र आवाज़ नहीं सुन सकता। एजेंट बोलेगी; आप टाइप करके या कीपैड से जवाब दे सकते हैं। Chrome या Edge में आवाज़ सुनी जा सकती है।',
     tapToCall: 'कॉल करने के लिए दबाएँ', youAre: (handle: string) => `आप ${handle} हैं`, signIn: 'कॉल करने के लिए साइन इन करें',
     ringing: 'घंटी बज रही है…', connecting: 'CivicChai एजेंट से जोड़ा जा रहा है…', locating: 'आपकी लोकेशन ढूँढी जा रही है…',
-    speaking: 'CivicChai बोल रही है', listening: 'सुन रही है… बोलिए', understanding: 'समझ रही है…', filing: 'रिपोर्ट दर्ज हो रही है…', withdrawing: 'शिकायत वापस ली जा रही है…',
+    speaking: 'CivicChai बोल रही है', listening: 'सुन रही है… आराम से बोलिए', understanding: 'समझ रही है…', filing: 'रिपोर्ट दर्ज हो रही है…', withdrawing: 'शिकायत वापस ली जा रही है…',
     yourTurnType: 'आपकी बारी: टाइप करें या कीपैड इस्तेमाल करें', yourTurnMic: 'आपकी बारी: बोलने के लिए माइक दबाएँ',
     ended: (time: string) => `कॉल ख़त्म · ${time}`,
     checklist: ['समस्या', 'जगह', 'पिन', 'कब से', 'सबूत', 'दर्ज'],
     typePlaceholder: 'या अपना जवाब टाइप करें', send: 'जवाब भेजें',
     mute: 'म्यूट', unmute: 'अनम्यूट', keypad: 'कीपैड', speaker: 'स्पीकर', repeat: 'दोहराएँ', captions: 'कैप्शन', restart: 'फिर से शुरू', end: 'कॉल काटें', hide: 'छिपाएँ', back: 'वापस', del: 'अंक मिटाएँ',
-    tapToTalk: 'बोलने के लिए दबाएँ', interrupt: 'बीच में रोककर जवाब दें', speakerOff: 'स्पीकर बंद · सिर्फ़ कैप्शन', captionsOff: 'कैप्शन छिपे हैं',
+    tapToTalk: 'बोलने के लिए दबाएँ', doneSpeaking: 'मेरी बात पूरी हुई', interrupt: 'बीच में रोककर जवाब दें', speakerOff: 'स्पीकर बंद · सिर्फ़ कैप्शन', captionsOff: 'कैप्शन छिपे हैं',
     keypadPin: '6 अंकों का पिन दबाएँ', keypadYesNo: '1 = हाँ · 2 = ना', keypadHelp: '# भेजें · * मिटाएँ',
     filed: 'रिपोर्ट दर्ज हुई', routed: (department: string) => `विभाग: ${department}`, openReport: 'रिपोर्ट खोलें', myCharcha: 'My Charcha',
     noReport: 'इस कॉल में कोई रिपोर्ट दर्ज नहीं हुई।', draftSaved: 'आपकी शिकायत इसी डिवाइस पर ड्राफ़्ट के रूप में सहेजी गई है। इंटरनेट आते ही भेज दी जाएगी।',
@@ -107,13 +107,13 @@ const UI = {
     noRecognition: 'हा ब्राउझर आवाज ऐकू शकत नाही. एजंट बोलेल; तुम्ही टाइप करून किंवा कीपॅडने उत्तर देऊ शकता. Chrome किंवा Edge मध्ये आवाज ऐकला जातो.',
     tapToCall: 'कॉल करण्यासाठी दाबा', youAre: (handle: string) => `तुम्ही ${handle} आहात`, signIn: 'कॉल करण्यासाठी साइन इन करा',
     ringing: 'रिंग वाजत आहे…', connecting: 'CivicChai एजंटशी जोडत आहे…', locating: 'तुमचे लोकेशन शोधत आहे…',
-    speaking: 'CivicChai बोलत आहे', listening: 'ऐकत आहे… बोला', understanding: 'समजून घेत आहे…', filing: 'रिपोर्ट नोंदवत आहे…', withdrawing: 'तक्रार मागे घेत आहे…',
+    speaking: 'CivicChai बोलत आहे', listening: 'ऐकत आहे… सावकाश बोला', understanding: 'समजून घेत आहे…', filing: 'रिपोर्ट नोंदवत आहे…', withdrawing: 'तक्रार मागे घेत आहे…',
     yourTurnType: 'तुमची पाळी: टाइप करा किंवा कीपॅड वापरा', yourTurnMic: 'तुमची पाळी: बोलण्यासाठी माइक दाबा',
     ended: (time: string) => `कॉल संपला · ${time}`,
     checklist: ['समस्या', 'ठिकाण', 'पिन', 'किती दिवस', 'पुरावा', 'नोंदवली'],
     typePlaceholder: 'किंवा तुमचं उत्तर टाइप करा', send: 'उत्तर पाठवा',
     mute: 'म्यूट', unmute: 'अनम्यूट', keypad: 'कीपॅड', speaker: 'स्पीकर', repeat: 'पुन्हा ऐका', captions: 'कॅप्शन', restart: 'पुन्हा सुरू', end: 'कॉल बंद करा', hide: 'लपवा', back: 'मागे', del: 'अंक खोडा',
-    tapToTalk: 'बोलण्यासाठी दाबा', interrupt: 'मध्येच थांबवून उत्तर द्या', speakerOff: 'स्पीकर बंद · फक्त कॅप्शन', captionsOff: 'कॅप्शन लपवले आहेत',
+    tapToTalk: 'बोलण्यासाठी दाबा', doneSpeaking: 'माझं बोलणं झालं', interrupt: 'मध्येच थांबवून उत्तर द्या', speakerOff: 'स्पीकर बंद · फक्त कॅप्शन', captionsOff: 'कॅप्शन लपवले आहेत',
     keypadPin: '6 अंकी पिन दाबा', keypadYesNo: '1 = हो · 2 = नाही', keypadHelp: '# पाठवा · * खोडा',
     filed: 'रिपोर्ट नोंदवला', routed: (department: string) => `विभाग: ${department}`, openReport: 'रिपोर्ट उघडा', myCharcha: 'My Charcha',
     noReport: 'या कॉलमध्ये कोणताही रिपोर्ट नोंदवला नाही.', draftSaved: 'तुमची तक्रार याच डिव्हाइसवर ड्राफ्ट म्हणून जतन केली आहे. इंटरनेट मिळताच ती पाठवली जाईल.',
@@ -132,6 +132,11 @@ const DTMF: Record<string, [number, number]> = {
 }
 
 const RING_SECONDS = 3.6
+// The caller's turn ends after this much silence. Describing the problem gets the longest
+// pause, so people can stop and think mid-sentence; yes/no answers end sooner.
+const SILENCE_MS: Partial<Record<CallStage, number>> = { problem: 3500, location: 2800, change: 2800, duration: 2500 }
+const DEFAULT_SILENCE_MS = 2000
+const MAX_TURN_MS = 90_000
 // After this many unanswered prompts in a row the agent stops opening the microphone on its own.
 const MAX_AUTO_LISTEN_MISSES = 3
 
@@ -218,6 +223,7 @@ export function VoiceCall() {
   const turnRef = useRef(0)
   const sessionRef = useRef(0)
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null)
+  const finishTurnRef = useRef<(() => void) | null>(null)
   const audioRef = useRef<AudioContext | null>(null)
   const sourceRef = useRef<AudioBufferSourceNode | null>(null)
   const cloudVoiceRef = useRef(false)
@@ -330,9 +336,16 @@ export function VoiceCall() {
 
   function stopListening() {
     sessionRef.current += 1
+    finishTurnRef.current = null
     try { recognitionRef.current?.stop() } catch { /* already stopped */ }
     recognitionRef.current = null
     setInterim('')
+  }
+
+  /** The caller says they are done; whatever was heard is used straight away. */
+  function doneSpeaking() {
+    haptic('tap')
+    finishTurnRef.current?.()
   }
 
   function listen() {
@@ -346,15 +359,47 @@ export function VoiceCall() {
     const recognition = new Recognition()
     recognition.lang = languageOf(call.language).tag
     recognition.interimResults = true
-    recognition.continuous = false
-    let heard = ''
+    // Keep listening through short pauses; the turn ends after a real silence (below).
+    recognition.continuous = true
+    let finalText = ''
+    let partial = ''
     let failed = false
+    let finished = false
+    let silenceTimer: ReturnType<typeof setTimeout> | undefined
+    const silenceMs = SILENCE_MS[call.stage] ?? DEFAULT_SILENCE_MS
+    const maxTimer = setTimeout(() => finish(), MAX_TURN_MS)
+    const heard = () => [finalText, partial].filter(Boolean).join(' ').trim()
+
+    function finish() {
+      if (finished || session !== sessionRef.current) return
+      finished = true
+      clearTimeout(silenceTimer)
+      clearTimeout(maxTimer)
+      finishTurnRef.current = null
+      sessionRef.current += 1
+      try { recognition.stop() } catch { /* already stopped */ }
+      recognitionRef.current = null
+      setInterim('')
+      if (phaseRef.current !== 'connected') return
+      const text = heard()
+      if (text) { void callerSaid(text); return }
+      if (failed) { setActivity('waiting'); return }
+      const state = callRef.current
+      if (state && state.misses < MAX_AUTO_LISTEN_MISSES) void applyTurn(handleSilence(state))
+      else setActivity('waiting')
+    }
+    finishTurnRef.current = finish
+
     recognition.onstart = () => { if (session === sessionRef.current) setActivity('listening') }
     recognition.onresult = (event) => {
       if (session !== sessionRef.current) return
-      const { finalText, interim: partial } = transcriptFromResults(event.results)
-      if (finalText) heard = finalText
-      setInterim(partial || finalText)
+      const result = transcriptFromResults(event.results)
+      finalText = result.finalText
+      partial = result.interim
+      setInterim(heard())
+      // Every new word restarts the silence countdown.
+      clearTimeout(silenceTimer)
+      silenceTimer = setTimeout(finish, silenceMs)
     }
     recognition.onerror = (event) => {
       if (session !== sessionRef.current || event.error === 'no-speech' || event.error === 'aborted') return
@@ -363,21 +408,14 @@ export function VoiceCall() {
       if (message) setNotice(message)
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') { mutedRef.current = true; setMuted(true) }
     }
-    recognition.onend = () => {
-      if (session !== sessionRef.current) return
-      recognitionRef.current = null
-      setInterim('')
-      if (phaseRef.current !== 'connected') return
-      if (heard.trim()) { void callerSaid(heard.trim()); return }
-      if (failed) { setActivity('waiting'); return }
-      const state = callRef.current
-      if (state && state.misses < MAX_AUTO_LISTEN_MISSES) void applyTurn(handleSilence(state))
-      else setActivity('waiting')
-    }
+    // Browsers also end continuous sessions on their own (long silence, network hiccup).
+    recognition.onend = () => finish()
     recognitionRef.current = recognition
     try {
       recognition.start()
     } catch {
+      finished = true
+      clearTimeout(maxTimer)
       setActivity('waiting')
     }
   }
@@ -800,6 +838,9 @@ export function VoiceCall() {
 
                   {phase === 'connected' && activity === 'waiting' && speechSupported && voiceConsent && !busy && (
                     <button type="button" onClick={talkNow} className="mx-auto mt-2 inline-flex items-center gap-2 rounded-full bg-leaf px-4 py-1.5 text-xs font-semibold text-cream"><Mic className="h-4 w-4" />{ui.tapToTalk}</button>
+                  )}
+                  {phase === 'connected' && activity === 'listening' && (
+                    <button type="button" onClick={doneSpeaking} className="mx-auto mt-2 inline-flex items-center gap-2 rounded-full bg-cream px-4 py-1.5 text-xs font-semibold text-charcoal"><Check className="h-4 w-4" />{ui.doneSpeaking}</button>
                   )}
                   {phase === 'connected' && activity === 'speaking' && !busy && stage !== 'done' && speechSupported && voiceConsent && (
                     <button type="button" onClick={talkNow} className="mx-auto mt-2 text-[11px] font-semibold text-cream/50 underline">{ui.interrupt}</button>

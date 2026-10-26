@@ -33,6 +33,8 @@ type Step = 'location' | 'compose' | 'analyzing' | 'result' | 'duplicate' | 'don
 type Analysis = Awaited<ReturnType<typeof analyzeComplaintRequest>>
 
 const LANGS = ['Auto Detect', 'English', 'हिन्दी', 'मराठी']
+// Dictation stops by itself after this long without new words.
+const VOICE_SILENCE_STOP_MS = 8000
 
 function isInstalledApp() {
   return typeof window !== 'undefined' && window.matchMedia?.('(display-mode: standalone)').matches
@@ -120,7 +122,9 @@ export function Composer({ onClose }: { onClose: () => void }) {
     const recognition = new SpeechRecognition()
     recognition.lang = speechLanguage(lang)
     recognition.interimResults = true
-    recognition.continuous = false
+    // Recording continues through pauses until the person taps stop, or stays silent for a while.
+    recognition.continuous = true
+    let silenceTimer: ReturnType<typeof setTimeout> | undefined
 
     recognition.onresult = (event: any) => {
       const { finalText, interim } = transcriptFromResults(event.results)
@@ -128,9 +132,11 @@ export function Composer({ onClose }: { onClose: () => void }) {
       setUsedVoice(true)
       if (finalText) setText(joinTranscript(textBeforeSpeech.current, finalText))
       setInterimSpeech(interim)
+      clearTimeout(silenceTimer)
+      silenceTimer = setTimeout(() => { try { recognition.stop() } catch { /* already stopped */ } }, VOICE_SILENCE_STOP_MS)
     }
 
-    recognition.onend = () => { setIsListening(false); setInterimSpeech('') }
+    recognition.onend = () => { clearTimeout(silenceTimer); setIsListening(false); setInterimSpeech('') }
     recognition.onerror = (event) => {
       setIsListening(false)
       setInterimSpeech('')
@@ -142,6 +148,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
     recognitionRef.current = recognition
 
     return () => {
+      clearTimeout(silenceTimer)
       try {
         recognition.stop()
       } catch {
@@ -517,7 +524,9 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   ['Language', analysis.language],
                   ['Issue', analysis.issue],
                   ['Location', `${locality}, PIN ${pin}`],
+                  ...(analysis.area ? [['Area', [analysis.area.subDistrict, analysis.area.district, analysis.area.state].filter(Boolean).join(', ')]] : []),
                   ['Suggested department', analysis.department],
+                  ...(analysis.jurisdiction ? [['Responsible level', analysis.jurisdiction.levelLabel]] : []),
                   ['Priority', `${analysis.priority} · ${analysis.priorityScore}/100`],
                 ].map(([k, v]) => (
                   <div
@@ -528,6 +537,9 @@ export function Composer({ onClose }: { onClose: () => void }) {
                     <dd className="text-right font-semibold text-charcoal">{v}</dd>
                   </div>
                 ))}
+                {analysis.jurisdiction && analysis.jurisdiction.level !== 'local' && (
+                  <div className="mt-2 rounded-lg bg-gold/10 p-2.5 text-xs leading-relaxed text-charcoal/70">This looks like a {analysis.jurisdiction.levelLabel.toLowerCase()} matter ({analysis.jurisdiction.authority}). Your report records this so the local office can forward it.</div>
+                )}
                 <div className="flex items-center justify-between pt-2">
                   <dt className="text-charcoal/60">Classification confidence</dt>
                   <dd className="rounded-md bg-leaf/15 px-2 py-0.5 font-semibold text-leaf">

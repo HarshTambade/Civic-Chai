@@ -1,5 +1,5 @@
 /** Migration level this release requires (see supabase/migrations/007_service_area_pins.sql). */
-export const REQUIRED_SCHEMA_VERSION = 8
+export const REQUIRED_SCHEMA_VERSION = 9
 
 /** Reads an on/off deployment flag, tolerating "TRUE", "1", "yes" and surrounding spaces. */
 function flag(value: string | undefined): boolean | undefined {

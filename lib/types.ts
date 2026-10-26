@@ -1,3 +1,5 @@
+import type { JurisdictionAssessment, LocalBodyType } from '@/lib/jurisdiction'
+
 export type IssueStatus =
   | 'Filed'
   | 'AI Classified'
@@ -28,6 +30,13 @@ export interface IssueRecord {
   district?: string
   municipality?: string
   ward?: string
+  /** Taluka / tehsil. */
+  subDistrict?: string
+  localBodyType?: LocalBodyType
+  /** Where the area labels came from: a verified hub, or the PIN / map directory. */
+  areaSource?: 'verified' | 'directory' | 'none'
+  /** Suggested responsible level of government, derived from the complaint and its area. */
+  jurisdiction?: JurisdictionAssessment
   status: IssueStatus
   priority: IssuePriority
   trust: number

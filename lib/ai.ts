@@ -1,5 +1,7 @@
 import { calculatePriorityScore, calculateTrustScore, type DuplicateCandidate } from '@/lib/scoring'
 import type { IssuePriority } from '@/lib/types'
+import { assessJurisdiction, type JurisdictionAssessment } from '@/lib/jurisdiction'
+import type { DirectoryArea } from '@/lib/geo'
 
 export type ComplaintAnalysis = {
   language: string
@@ -16,6 +18,10 @@ export type ComplaintAnalysis = {
   confidence: number
   summary: string
   modelVersion: string
+  /** Suggested responsible level of government (Union / State / local body). */
+  jurisdiction?: JurisdictionAssessment
+  /** State, district, taluka and local body from the PIN directory, when known. */
+  area?: DirectoryArea | null
   duplicateIssue?: {
     id: string
     documentId: string
@@ -123,6 +129,7 @@ export function analyzeComplaint(input: string, selectedLanguage = 'Auto Detect'
     confidence,
     summary: `${issue} reported in ${locality}${pin ? `, PIN ${pin}` : ''}. Suggested routing: ${department}. Please confirm the location and classification before filing.`,
     modelVersion: 'civicchai-rules-v1',
+    jurisdiction: assessJurisdiction({ text: original, category }),
     duplicateIssueFound: false,
   }
 }

@@ -123,6 +123,37 @@ const TEXT = {
   },
 } satisfies Record<CallLanguage, unknown>
 
+// What the agent adds when the complaint belongs to the Union or a State, not the local body.
+const BEYOND_LOCAL: Record<CallLanguage, Record<string, string>> = {
+  en: {
+    'national-highway': "Note: national highways are the Union government's responsibility, under the National Highways Authority.",
+    railways: "Note: railway property is the Union government's responsibility, under Indian Railways.",
+    'posts-telecom': "Note: postal and telecom services are the Union government's responsibility.",
+    'state-highway': "Note: state highways are looked after by the State's Public Works Department.",
+    electricity: "Note: electricity supply is handled by the State's electricity distribution company.",
+    traffic: 'Note: traffic enforcement is a job for the State traffic police.',
+    suffix: 'Your report will record this so the local office can forward it.',
+  },
+  hi: {
+    'national-highway': 'ध्यान दें, राष्ट्रीय राजमार्ग केंद्र सरकार की ज़िम्मेदारी है, जिसे राष्ट्रीय राजमार्ग प्राधिकरण देखता है।',
+    railways: 'ध्यान दें, रेलवे की संपत्ति केंद्र सरकार की ज़िम्मेदारी है, जिसे भारतीय रेलवे देखती है।',
+    'posts-telecom': 'ध्यान दें, डाक और दूरसंचार सेवाएँ केंद्र सरकार की ज़िम्मेदारी हैं।',
+    'state-highway': 'ध्यान दें, राज्य राजमार्ग राज्य का लोक निर्माण विभाग देखता है।',
+    electricity: 'ध्यान दें, बिजली आपूर्ति राज्य की बिजली वितरण कंपनी देखती है।',
+    traffic: 'ध्यान दें, ट्रैफ़िक नियंत्रण राज्य की ट्रैफ़िक पुलिस का काम है।',
+    suffix: 'आपकी रिपोर्ट में यह दर्ज होगा, ताकि स्थानीय कार्यालय इसे आगे भेज सके।',
+  },
+  mr: {
+    'national-highway': 'लक्षात घ्या, राष्ट्रीय महामार्ग ही केंद्र सरकारची जबाबदारी आहे, ते राष्ट्रीय महामार्ग प्राधिकरण पाहतं.',
+    railways: 'लक्षात घ्या, रेल्वेची मालमत्ता ही केंद्र सरकारची जबाबदारी आहे, ती भारतीय रेल्वे पाहते.',
+    'posts-telecom': 'लक्षात घ्या, टपाल आणि दूरसंचार सेवा ही केंद्र सरकारची जबाबदारी आहे.',
+    'state-highway': 'लक्षात घ्या, राज्य महामार्ग राज्याचा सार्वजनिक बांधकाम विभाग पाहतो.',
+    electricity: 'लक्षात घ्या, वीजपुरवठा राज्याची वीज वितरण कंपनी पाहते.',
+    traffic: 'लक्षात घ्या, वाहतूक नियंत्रण हे राज्याच्या वाहतूक पोलिसांचं काम आहे.',
+    suffix: 'तुमच्या रिपोर्टमध्ये हे नोंदवलं जाईल, म्हणजे स्थानिक कार्यालय ते पुढे पाठवू शकेल.',
+  },
+}
+
 // How the agent says each category's issue and department in Hindi and Marathi.
 const SPOKEN_CATEGORY: Record<string, { hi: [string, string]; mr: [string, string] }> = {
   'Public Lighting': { hi: ['स्ट्रीटलाइट बंद होने की शिकायत', 'नगर पालिका के स्ट्रीटलाइट विभाग'], mr: ['पथदिवे बंद असल्याची तक्रार', 'महापालिकेच्या पथदिवे विभागा'] },
@@ -429,10 +460,12 @@ export function handleSilence(state: CallState): CallTurn {
 }
 
 /** Continues after the complaint text was classified. */
-export function afterClassify(state: CallState, analysis: { issue: string; department: string; category?: string }): CallTurn {
+export function afterClassify(state: CallState, analysis: { issue: string; department: string; category?: string; jurisdiction?: { level: string; ruleId: string } }): CallTurn {
   const next = withSlots(state, { issue: analysis.issue, department: analysis.department, category: analysis.category ?? '' })
   const spoken = spokenCategory(next)
-  return advance(next, t(state).ack(spoken.issue, spoken.department))
+  const beyond = analysis.jurisdiction && analysis.jurisdiction.level !== 'local' ? BEYOND_LOCAL[state.language][analysis.jurisdiction.ruleId] : undefined
+  const note = beyond ? ` ${beyond} ${BEYOND_LOCAL[state.language].suffix}` : ''
+  return advance(next, t(state).ack(spoken.issue, spoken.department) + note)
 }
 
 /** Records whether an authority covers the PIN; refreshes the read-back if it is pending. */
