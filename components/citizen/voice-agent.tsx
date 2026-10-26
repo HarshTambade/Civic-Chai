@@ -8,7 +8,7 @@ import { analyzeComplaintRequest } from '@/lib/ai'
 import { submitIssuePayload } from '@/lib/client-api'
 import { useAuth } from '@/components/auth-provider'
 import { useServiceArea } from '@/components/citizen/use-service-area'
-import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage, type SpeechRecognitionLike } from '@/components/citizen/speech'
+import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, joinTranscript, speechErrorMessage, speechLanguage, transcriptFromResults, type SpeechRecognitionLike } from '@/components/citizen/speech'
 import { useLiveLocation } from '@/components/citizen/use-location'
 import { saveOfflineDraft } from '@/lib/offline-queue'
 import type { IssueRecord } from '@/lib/types'
@@ -87,15 +87,11 @@ export function VoiceAgent() {
     recognition.interimResults = true
     recognition.continuous = true
     recognition.onstart = () => { setListening(true); setSpeechMessage('Listening… speak clearly, then tap Stop.') }
+    // The whole session is rebuilt from all results each time, so nothing is written twice.
+    const before = problem
     recognition.onresult = (event) => {
-      let finalText = ''
-      let partial = ''
-      for (let index = event.resultIndex; index < event.results.length; index += 1) {
-        const result = event.results[index]
-        if (result.isFinal) finalText += result[0].transcript
-        else partial += result[0].transcript
-      }
-      if (finalText.trim()) setProblem((current) => `${current} ${finalText.trim()}`.trim())
+      const { finalText, interim: partial } = transcriptFromResults(event.results)
+      if (finalText) setProblem(joinTranscript(before, finalText))
       setInterim(partial)
     }
     recognition.onerror = (event) => {

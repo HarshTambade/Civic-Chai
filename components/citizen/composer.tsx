@@ -12,7 +12,7 @@ import { isDemoModeEnabled } from '@/lib/supabase'
 import { useAuth } from '@/components/auth-provider'
 import { PwaInstallButton } from '@/components/pwa-install-button'
 import { useServiceArea } from './use-service-area'
-import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, speechErrorMessage, speechLanguage } from './speech'
+import { SPEECH_UNSUPPORTED_MESSAGE, getSpeechRecognition, joinTranscript, speechErrorMessage, speechLanguage, transcriptFromResults } from './speech'
 import { LocationStep, type ReportLocation } from './location-step'
 import Link from 'next/link'
 import {
@@ -61,6 +61,9 @@ export function Composer({ onClose }: { onClose: () => void }) {
   // Unknown until /api/health answers, so the form never flashes before the intake check.
   const [deployment, setDeployment] = useState<{ intake: boolean; uploads: boolean } | null>(null)
   const recognitionRef = useRef<any>(null)
+  // Text in the box when recording started; each recording session is appended to it once.
+  const textBeforeSpeech = useRef('')
+  const [interimSpeech, setInterimSpeech] = useState('')
   const fileInputRef = useRef<HTMLInputElement | null>(null)
   const prefilled = useRef(false)
 
@@ -115,28 +118,17 @@ export function Composer({ onClose }: { onClose: () => void }) {
     recognition.continuous = false
 
     recognition.onresult = (event: any) => {
-      const latestResult = event.results?.[event.results.length - 1]
-      const transcript = latestResult?.[0]?.transcript ?? ''
-      const cleaned = transcript.trim()
-
-      if (!cleaned) return
-
+      const { finalText, interim } = transcriptFromResults(event.results)
+      if (!finalText && !interim) return
       setUsedVoice(true)
-      setText((current) => {
-        if (!current) return cleaned
-
-        const lastWords = current.trim().split(/\s+/).slice(-5).join(' ')
-        if (lastWords && cleaned.includes(lastWords)) {
-          return current
-        }
-
-        return `${current.trim()} ${cleaned}`.trim()
-      })
+      if (finalText) setText(joinTranscript(textBeforeSpeech.current, finalText))
+      setInterimSpeech(interim)
     }
 
-    recognition.onend = () => setIsListening(false)
+    recognition.onend = () => { setIsListening(false); setInterimSpeech('') }
     recognition.onerror = (event) => {
       setIsListening(false)
+      setInterimSpeech('')
       const text = speechErrorMessage(event.error)
       if (text) setSubmissionError(text)
     }
@@ -182,6 +174,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
 
     try {
       setSubmissionError('')
+      textBeforeSpeech.current = text
       recognitionRef.current.start()
       setIsListening(true)
     } catch {
@@ -389,6 +382,7 @@ export function Composer({ onClose }: { onClose: () => void }) {
                   className="mt-1 w-full resize-none rounded-xl border border-border bg-card p-3 text-sm font-normal text-charcoal outline-none placeholder:text-charcoal/40 focus:border-terracotta focus:ring-2 focus:ring-terracotta/20"
                 />
               </label>
+              {interimSpeech && <p aria-live="polite" className="-mt-2 text-xs italic text-charcoal/50">{interimSpeech}…</p>}
 
               <div className="flex flex-wrap gap-2" role="group" aria-label="Complaint language">
                 {LANGS.map((l) => (
