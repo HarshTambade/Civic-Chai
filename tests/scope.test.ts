@@ -26,3 +26,9 @@ test('roles without issue management see no queue', () => {
   assert.ok(!canSeeIssue({ role: 'moderator', pin: '401208' }, { pin: '401208', department: 'Municipal Public Lighting' }))
   assert.ok(!canSeeIssue(null, { pin: '401208', department: 'Municipal Public Lighting' }))
 })
+
+test('demo staff with all-area scope see complaints filed at any PIN, still within their department', () => {
+  assert.ok(canSeeIssue({ ...authority, allAreas: true }, { pin: '401305', department: 'Municipal Operations' }))
+  assert.ok(canSeeIssue({ ...operator, allAreas: true }, { pin: '401305', department: 'Municipal Public Lighting' }))
+  assert.ok(!canSeeIssue({ ...operator, allAreas: true }, { pin: '401305', department: 'Municipal Operations' }))
+})

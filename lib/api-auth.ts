@@ -2,7 +2,7 @@ import { getSupabaseClient, getSupabaseClientForToken, isDemoModeEnabled, isLoca
 import { isAppRole, isDemoAccountEmail, requiresMfa, type AppRole } from '@/lib/roles'
 import { anonymousHandle } from '@/lib/anonymity'
 
-export type RequestActor = { id?: string; email?: string; name?: string; handle?: string; role?: AppRole; pin?: string; servicePins?: string[]; department?: string; demo?: boolean }
+export type RequestActor = { id?: string; email?: string; name?: string; handle?: string; role?: AppRole; pin?: string; servicePins?: string[]; department?: string; demo?: boolean; allAreas?: boolean }
 
 function servicePinsOf(profile: unknown): string[] {
   const value = (profile as { service_pins?: unknown } | null)?.service_pins
@@ -41,6 +41,7 @@ export async function getRequestContext(request: Request) {
         pin: profile?.pin ?? undefined,
         servicePins: servicePinsOf(profile),
         department: profile?.department ?? undefined,
+        allAreas: demoExempt,
       } satisfies RequestActor,
       client,
       authenticated: true,
@@ -61,6 +62,7 @@ export async function getRequestContext(request: Request) {
       servicePins: (request.headers.get('x-civicchai-demo-service-pins') ?? '').split(',').filter(Boolean),
       department: request.headers.get('x-civicchai-demo-department') ?? undefined,
       demo: true,
+      allAreas: true,
     } : null
     return { actor, client: null, authenticated: Boolean(actor), mfaRequired: false }
   }

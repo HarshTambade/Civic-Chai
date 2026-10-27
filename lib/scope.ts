@@ -1,7 +1,8 @@
 // Staff scope (SOP §15.1): an authority covers an area made of one or more PIN codes;
 // department staff additionally only see their own department within that area.
+// Seeded demo staff (demo mode only) cover every area, so any filed complaint reaches them.
 
-type ScopedActor = { role?: string; pin?: string; servicePins?: string[]; department?: string } | null | undefined
+type ScopedActor = { role?: string; pin?: string; servicePins?: string[]; department?: string; allAreas?: boolean } | null | undefined
 
 /** Every PIN an account is responsible for: its primary PIN plus any extra service PINs. */
 export function coveredPins(actor: ScopedActor) {
@@ -9,7 +10,7 @@ export function coveredPins(actor: ScopedActor) {
 }
 
 export function coversPin(actor: ScopedActor, pin: string) {
-  return coveredPins(actor).includes(pin)
+  return Boolean(actor?.allAreas) || coveredPins(actor).includes(pin)
 }
 
 /** Whether issue-management staff may see and act on an issue. */

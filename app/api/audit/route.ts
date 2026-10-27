@@ -10,10 +10,10 @@ export async function GET(request: Request) {
   const service = getSupabaseServiceClient()
   if (!service) return NextResponse.json({ events: getFallbackAudit() })
   const pins = coveredPins(auth.actor)
-  if (!pins.length) return NextResponse.json({ events: [] })
+  if (!pins.length && !auth.actor?.allAreas) return NextResponse.json({ events: [] })
 
   let issueIds: string[] | undefined
-  if (auth.actor?.role === 'authority_admin' || auth.actor?.role === 'auditor') {
+  if (!auth.actor?.allAreas && (auth.actor?.role === 'authority_admin' || auth.actor?.role === 'auditor')) {
     const { data: issues } = await service.from('issues').select('id').in('pin', pins)
     issueIds = (issues ?? []).map((issue) => issue.id)
     if (!issueIds.length) return NextResponse.json({ events: [] })
