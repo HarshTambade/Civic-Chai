@@ -179,6 +179,13 @@
     transform: translateY(-16px) scaleX(1.4);
   }
 }
+/* Leaflet stacks its panes and controls at z-index 400-1000. Keep that inside each map so
+   sheets, dialogs and sticky bars (z-40/z-50) always sit above it. */
+.leaflet-container {
+  isolation: isolate;
+  z-index: 0;
+}
+
 .animate-steam {
   animation: steam-rise 2.6s ease-in-out infinite;
 }

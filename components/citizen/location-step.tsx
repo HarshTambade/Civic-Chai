@@ -92,8 +92,8 @@ export function LocationStep({ value, onChange, onConfirm, verifiedArea, autoDet
         <p className="text-xs text-charcoal/60">Move the map so the pin sits on the problem. You can also type the PIN and locality.</p>
       </div>
 
-      <div className="relative overflow-hidden rounded-2xl border border-border">
-        <CenterPinMap latitude={center[0]} longitude={center[1]} zoom={zoom} onUserMove={(latitude, longitude) => void userMoved(latitude, longitude)} className="h-[46dvh] min-h-64 w-full" />
+      <div className="relative isolate overflow-hidden rounded-2xl border border-border">
+        <CenterPinMap latitude={center[0]} longitude={center[1]} zoom={zoom} onUserMove={(latitude, longitude) => void userMoved(latitude, longitude)} className="h-[40dvh] min-h-64 w-full" />
         <button type="button" onClick={() => void detect()} disabled={live.status === 'locating'} aria-label="Use my current location" className="absolute bottom-3 right-3 z-[600] flex h-11 w-11 items-center justify-center rounded-full bg-card text-chai shadow-lg ring-1 ring-border disabled:opacity-70">
           {live.status === 'locating' ? <Loader2 className="h-5 w-5 animate-spin" /> : <Crosshair className="h-5 w-5" />}
         </button>

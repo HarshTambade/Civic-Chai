@@ -548,6 +548,8 @@ const MAP_METRICS: Array<{ value: HeatmapMetric; label: string }> = [
 ]
 
 export function GISView() {
+  // On touch screens one finger scrolls the page; two fingers pan and zoom the map.
+  const [coarsePointer] = useState(() => typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches)
   const [data, setData] = useState<HeatmapData>(EMPTY_HEATMAP)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -625,7 +627,7 @@ export function GISView() {
             <span>{data.cells.length} generalized map cells · {data.mappedIssueCount}/{data.totalIssues} reports located</span>
           </div>
           <div className="relative h-[460px] w-full">
-            <MapContainer center={center} zoom={zoom} scrollWheelZoom className="h-full w-full" style={{ background: '#201c1a' }}>
+            <MapContainer center={center} zoom={zoom} scrollWheelZoom={!coarsePointer} dragging={!coarsePointer} className="h-full w-full" style={{ background: '#201c1a' }}>
               <MapFocus center={center} zoom={zoom} />
               <TileLayer attribution={process.env.NEXT_PUBLIC_MAP_ATTRIBUTION || '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'} url={process.env.NEXT_PUBLIC_MAP_TILE_URL || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'} />
               <HeatmapCanvas cells={data.cells} metric={metric} />
